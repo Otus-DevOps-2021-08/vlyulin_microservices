@@ -3,7 +3,7 @@ vlyulin microservices repository
 
 #Content:
 * [Student](#Student)
-* [Module hw03-bastion](#Module-hw03-bastion)
+* [Module hw12-docker-2](#Module-hw12-docker-2)
 
 # Student
 `
@@ -12,7 +12,7 @@ Course: DevOps
 Group: Otus-DevOps-2021-08
 `
 
-## Module hw12-docker-2" Запуск VM с установленным Docker Engine при помощи Docker Machine. Написание Dockerfile и сборка образа с тестовым приложением. Сохранение образа на DockerHub. <a name="Module-hw03-bastion"></a>
+## Module hw12-docker-2" Запуск VM с установленным Docker Engine при помощи Docker Machine. Написание Dockerfile и сборка образа с тестовым приложением. Сохранение образа на DockerHub. <a name="Module-hw12-docker-2"></a>
 > Цель: В данном дз студент продолжит работать с Docker, создаст образы приложения и загрузит из в DockerHub.
 > В данном задании тренируются навыки: работы с Docker, DockerHub.
 
@@ -391,3 +391,7 @@ ansible-playbook ./playbooks/install-reddit.yml --limit docker
 ```
 12. Проверка работоспособности приложения
 http://<public ip>:9292
+
+
+sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64
+sudo chmod +x /bin/hadolint

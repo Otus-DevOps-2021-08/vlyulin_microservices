@@ -3,7 +3,8 @@ vlyulin microservices repository
 
 #Content:
 * [Student](#Student)
-* [Module hw03-bastion](#Module-hw03-bastion)
+* [Module hw12-docker-2](#Module-hw12-docker-2)
+* [Module hw13-docker-3](#Module-hw13-docker-3)
 
 # Student
 `
@@ -12,7 +13,7 @@ Course: DevOps
 Group: Otus-DevOps-2021-08
 `
 
-## Module hw12-docker-2" Запуск VM с установленным Docker Engine при помощи Docker Machine. Написание Dockerfile и сборка образа с тестовым приложением. Сохранение образа на DockerHub. <a name="Module-hw03-bastion"></a>
+## Module hw12-docker-2" Запуск VM с установленным Docker Engine при помощи Docker Machine. Написание Dockerfile и сборка образа с тестовым приложением. Сохранение образа на DockerHub. <a name="Module-hw12-docker-2"></a>
 > Цель: В данном дз студент продолжит работать с Docker, создаст образы приложения и загрузит из в DockerHub.
 > В данном задании тренируются навыки: работы с Docker, DockerHub.
 
@@ -389,5 +390,187 @@ ansible --list-hosts docker
 ```
 ansible-playbook ./playbooks/install-reddit.yml --limit docker
 ```
-12. Проверка работоспособности приложения
-http://<public ip>:9292
+12. Проверка работоспособности приложения http://<public_ip>:9292
+
+## Module hw13-docker-3" Разбиение приложения на несколько микросервисов. Выбор базового образа. Подключение volume к контейнеру. <a name="Module-hw13-docker-3"></a>
+> Цель: В данном дз студент продолжит работы с Docker, разобьет приложение на отдельные микросервисы, 
+> соберет для каждого приложения отдельный образ, выберет базовый образ.
+> В данном задании тренируются навыки: создания образов Docker, написания Dockerfile.
+
+1. Подключиться к ранее созданному Docker host’у 
+```
+docker-machine ls
+eval $(docker-machine env docker-host)
+```
+2. Установлен hadolint
+Для ubuntu
+```
+sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64
+sudo chmod +x /bin/hadolint
+```
+Для windows в powershell
+```
+Set-ExecutionPolicy RemoteSigned -scope CurrentUser
+iwr -useb get.scoop.sh | iex
+scoop install hadolint
+```
+3. Скачан и распокован архив reddit-microservices.zip в директорию src
+4. Создан файл ./post-py/Dockerfile
+5. Создан файл ./comment/Dockerfile
+6. Создан файл ./ui/Dockerfile
+7. Скачан последний образ mongodb
+```
+docker pull mongo:latest
+```
+8. ./posr-py/Docker файл доработан для установки зависимостей requirements.txt. Добавлена команда копирования файла requirements.txt
+```
+COPY requirements.txt /app/requirements.txt
+```
+Для исправления следующей ошибки при сборке образа post-py
+```
+Requested MarkupSafe>=2.0 from https://files.pythonhosted.org/packages/bf/10/ff66fea6d1788c458663a84d88787bae15d45daa16f6b3ef33322a51fc7e/MarkupSafe-2.0.1.tar.gz#sha256=594c67807fb16238b30c44bdf74f36c02cdf22d1c8cda91ef8a0ed8dabf5620a (from Jinja2>=2.4->flask==0.12.3->-r /app/requirements.txt (line 2)), but installing version None
+```
+в ./post-py/Dockerfile добавлена команда
+```
+pip install --upgrade pip
+```
+в результате получилось:
+```
+RUN pip install --upgrade pip && apk --no-cache --update add build-base && \
+    pip install -r /app/requirements.txt && \
+    apk del build-base
+```
+9. Собраны образы с сервисами
+```
+docker build -t vlyulin/post:1.0 ./post-py
+docker build -t vlyulin/comment:1.0 ./comment
+docker build -t vlyulin/ui:1.0 ./ui
+```
+10. Создана сеть и запущено приложение
+```
+docker network create reddit
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+docker run -d --network=reddit --network-alias=post vlyulin/post:1.0
+docker run -d --network=reddit --network-alias=comment vlyulin/comment:1.0
+docker run -d --network=reddit -p 9292:9292 vlyulin/ui:1.0
+```
+11. Проверена работоспособность приложения http://<docker-host-ip>:9292/
+Где <docker-host-ip> определяется командой
+```
+docker-machine ls
+```
+### Задание со *
+1. Остановлены контейнеры
+```
+docker kill $(docker ps -q)
+```
+2. Запуск контенеров с другими алиасами и передача данных с помощью переменных.
+```
+docker run -d --network=reddit --network-alias=my_post_db --network-alias=my_comment_db mongo:latest
+docker run -d --network=reddit --network-alias=my_post -e POST_DATABASE_HOST=my_post_db vlyulin/post:1.0
+docker run -d --network=reddit --network-alias=my_comment -e COMMENT_DATABASE_HOST=my_comment_db vlyulin/comment:1.0
+docker run -d --network=reddit -p 9292:9292 -e POST_SERVICE_HOST=my_post -e COMMENT_SERVICE_HOST=my_comment vlyulin/ui:1.0
+```
+3. docker images
+```
+ubuntu@vlulinhp:~/vlyulin_microservices/src”$ docker images
+REPOSITORY            TAG            IMAGE ID       CREATED        SIZE
+vlyulin/ui            1.0            a5a163976c5e   4 hours ago    772MB
+```
+4. Внесены изменения в src\ui\Dockerfile 
+было:
+```
+FROM ruby:2.2
+RUN apt-get update -qq && apt-get install -y build-essential
+
+ENV APP_HOME /app
+RUN mkdir $APP_HOME
+
+WORKDIR $APP_HOME
+ADD Gemfile* $APP_HOME/
+RUN bundle install
+ADD . $APP_HOME
+
+ENV POST_SERVICE_HOST post
+ENV POST_SERVICE_PORT 5000
+ENV COMMENT_SERVICE_HOST comment
+ENV COMMENT_SERVICE_PORT 9292
+
+CMD ["puma"]
+```
+стало:
+```
+FROM ubuntu:16.04
+RUN apt-get update \
+    && apt-get install -y ruby-full ruby-dev build-essential \
+    && gem install bundler --no-ri --no-rdoc
+
+ENV APP_HOME /app
+RUN mkdir $APP_HOME
+
+WORKDIR $APP_HOME
+ADD Gemfile* $APP_HOME/
+RUN bundle install
+ADD . $APP_HOME
+
+ENV POST_SERVICE_HOST post
+ENV POST_SERVICE_PORT 5000
+ENV COMMENT_SERVICE_HOST comment
+ENV COMMENT_SERVICE_PORT 9292
+
+CMD ["puma"]
+```
+5. Пересобран ui 
+```
+docker build -t vlyulin/ui:2.0 ./ui
+```
+6. Проверка размера образа
+```
+ubuntu@vlulinhp:~/vlyulin_microservices/src”$ docker images
+REPOSITORY            TAG            IMAGE ID       CREATED          SIZE
+vlyulin/ui            2.0            fcd88a0e7379   20 seconds ago   463MB
+vlyulin/ui            1.0            a5a163976c5e   4 hours ago      772MB
+```
+7. Внесены улучшения по сборке в файле Dockerfile.01 (решение подсмотрено https://github.com/Otus-DevOps-2020-08/Tyatyushkin_microservices)
+8. Создан новый образ на основе Alpine Linux
+```
+docker build -t vlyulin/ui:3.0 ./ui --file ui/Dockerfile.01
+```
+9. Проверка размера образа
+```
+ubuntu@vlulinhp:~/vlyulin_microservices/src”$ docker images
+REPOSITORY            TAG            IMAGE ID       CREATED         SIZE
+vlyulin/ui            3.0            6e21a35b380a   2 minutes ago   206MB
+vlyulin/ui            2.0            fcd88a0e7379   9 minutes ago   463MB
+vlyulin/ui            1.0            a5a163976c5e   4 hours ago     772MB
+```
+10. Перезапущены приложения
+```
+docker kill $(docker ps -q)
+docker network create reddit
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+docker run -d --network=reddit --network-alias=post vlyulin/post:1.0
+docker run -d --network=reddit --network-alias=comment vlyulin/comment:1.0
+docker run -d --network=reddit -p 9292:9292 vlyulin/ui:3.0
+```
+11. Создан Docker volume
+```
+docker volume create reddit_db
+```
+12. Docker volume подключен при запуске приложения "-v reddit_db:/data/db"
+```
+docker kill $(docker ps -q)
+docker network create reddit
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+docker run -d --network=reddit --network-alias=post vlyulin/post:1.0
+docker run -d --network=reddit --network-alias=comment vlyulin/comment:1.0
+docker run -d --network=reddit -p 9292:9292 vlyulin/ui:2.0
+```
+13. Проверка, что посты остаются после перезапуска приложений 
+```
+docker kill $(docker ps -q)
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+docker run -d --network=reddit --network-alias=post vlyulin/post:1.0
+docker run -d --network=reddit --network-alias=comment vlyulin/comment:1.0
+docker run -d --network=reddit -p 9292:9292 vlyulin/ui:2.0
+```

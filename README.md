@@ -391,7 +391,3 @@ ansible-playbook ./playbooks/install-reddit.yml --limit docker
 ```
 12. Проверка работоспособности приложения
 http://<public ip>:9292
-
-
-sudo wget -O /bin/hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64
-sudo chmod +x /bin/hadolint

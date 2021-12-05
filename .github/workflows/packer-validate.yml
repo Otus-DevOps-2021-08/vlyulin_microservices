@@ -1,0 +1,39 @@
+---
+name: Packer
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+jobs:
+  packer:
+    runs-on: ubuntu-latest
+    name: packer
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      # fix backwards incompatibilities in template
+      # - name: Fix Template
+      #  uses: hashicorp/packer-github-actions@master
+      #  with:
+      #    command: fix
+
+      # validate templates
+      - name: Validate Template
+        uses: hashicorp/packer-github-actions@master
+        with:
+          command: validate
+          arguments: -syntax-only
+          target: ./packer/app.json
+
+      # validate templates
+      - name: Validate Template
+        uses: hashicorp/packer-github-actions@master
+        with:
+          command: validate
+          arguments: -syntax-only
+          target: ./packer/db.json

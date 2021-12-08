@@ -5,6 +5,7 @@ vlyulin microservices repository
 * [Student](#Student)
 * [Module hw12-docker-2](#Module-hw12-docker-2)
 * [Module hw13-docker-3](#Module-hw13-docker-3)
+* [Module hw14-docker-4](#Module-hw14-docker-4)
 
 # Student
 `
@@ -574,3 +575,355 @@ docker run -d --network=reddit --network-alias=post vlyulin/post:1.0
 docker run -d --network=reddit --network-alias=comment vlyulin/comment:1.0
 docker run -d --network=reddit -p 9292:9292 vlyulin/ui:2.0
 ```
+
+## Module hw14-docker-4 Практика работы с основными типами Docker сетей. Декларативное описание Docker инфраструктуры при помощи Docker Compose. <a name="Module-hw14-docker-4"></a>
+> Цель: В данном дз студент продолжит работать с Docker. 
+> Узнает типы сетей используемые Docker. Научится создавать и управлять сетями.
+> В данном задании тренируются навыки: создания и управления сетями Docker.
+
+### Подключение к ранее созданному docker host'у
+```
+docker-machine ls
+eval $(docker-machine env docker-host)
+```
+
+### Сеть None
+1. Запуск контейнера с сетью none
+```
+docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
+```
+вывод
+```
+Unable to find image 'joffotron/docker-net-tools:latest' locally
+latest: Pulling from joffotron/docker-net-tools
+3690ec4760f9: Pull complete
+0905b79e95dc: Pull complete
+Digest: sha256:5752abdc4351a75e9daec681c1a6babfec03b317b273fc56f953592e6218d5b5
+Status: Downloaded newer image for joffotron/docker-net-tools:latest
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+```
+
+>**_Note_**: внутри контейнера из сетевых интерфейсов существует только loopback.  
+
+### Сеть Host
+2. Запуск контейнера с сетью host
+```
+docker run -ti --rm --network host joffotron/docker-net-tools -c ifconfig
+```
+вывод
+```
+br-99f1ba03b46d Link encap:Ethernet  HWaddr 02:42:45:97:9D:F8
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+
+docker0   Link encap:Ethernet  HWaddr 02:42:D6:9E:EB:3F
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+
+eth0      Link encap:Ethernet  HWaddr D0:0D:14:AD:AF:B0
+          inet addr:10.128.0.29  Bcast:10.128.0.255  Mask:255.255.255.0
+          inet6 addr: fe80::d20d:14ff:fead:afb0%32512/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1618 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1533 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:358742 (350.3 KiB)  TX bytes:158121 (154.4 KiB)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1%32512/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:182 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:182 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:14462 (14.1 KiB)  TX bytes:14462 (14.1 KiB)
+```
+
+Сравнение с командой 'docker-machine ssh docker-host ifconfig'
+```
+br-99f1ba03b46d: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 172.18.0.1  netmask 255.255.0.0  broadcast 172.18.255.255
+        ether 02:42:45:97:9d:f8  txqueuelen 0  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+docker0: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
+        ether 02:42:d6:9e:eb:3f  txqueuelen 0  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.128.0.29  netmask 255.255.255.0  broadcast 10.128.0.255
+        inet6 fe80::d20d:14ff:fead:afb0  prefixlen 64  scopeid 0x20<link>
+        ether d0:0d:14:ad:af:b0  txqueuelen 1000  (Ethernet)
+        RX packets 1530  bytes 346643 (346.6 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 1459  bytes 146763 (146.7 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 182  bytes 14462 (14.4 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 182  bytes 14462 (14.4 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+```
+
+**Вывод: сетевые интерфейсы совпадают**
+
+>**_Note_**: При запуске команды 'docker-machine ssh docker-host ifconfig' получена ошибка:
+```
+bash: ifconfig: command not found
+exit status 127
+```
+Решение:
+a) Получить ip dicker-host
+```
+docker-machine ip docker-host
+```
+b) Зайти на docker-host 
+```
+ssh -i ~/.ssh/id_rsa -l yc-user <docker-host ip>
+или проще
+docker-machine ssh docker-host
+выполнить установку
+apt install net-tools
+```
+
+3. Запуск нескольких 'docker run --network host -d nginx'
+Проверка 
+```
+docker ps
+```
+вывод
+```
+CONTAINER ID   IMAGE                 COMMAND                  CREATED          STATUS          PORTS
+                   NAMES
+5ae5ec80bcd1   nginx                 "/docker-entrypoint.…"   26 seconds ago   Up 24 seconds
+                   nervous_ellis
+dff513697905   vlyulin/ui:2.0        "puma"                   6 hours ago      Up 6 hours      0.0.0.0:9292->9292/tcp, :::9292->9292/tcp   tender_newton
+c3033ab87bc7   vlyulin/comment:1.0   "puma"                   6 hours ago      Up 6 hours
+                   cool_bardeen
+505dd76848da   vlyulin/post:1.0      "python3 post_app.py"    6 hours ago      Up 6 hours
+                   laughing_greider
+d70216d5539d   mongo:latest          "docker-entrypoint.s…"   6 hours ago      Up 6 hours      27017/tcp
+                   hopeful_sinoussi
+```
+
+Работает только один nginx, так как сеть одна и порт 80 уже занят.
+```
+docker ps
+```
+вывод
+```
+CONTAINER ID   IMAGE                 COMMAND                  CREATED              STATUS                      PORTS                                       NAMES
+cd1798fab984   nginx                 "/docker-entrypoint.…"   57 seconds ago       Exited (1) 53 seconds ago
+                                   xenodochial_williams
+b00b60bbf177   nginx                 "/docker-entrypoint.…"   59 seconds ago       Exited (1) 55 seconds ago
+                                   compassionate_boyd
+5ae5ec80bcd1   nginx                 "/docker-entrypoint.…"   About a minute ago   Up About a minute
+```
+Подтверждение:
+```
+docker logs cd1798fab984
+```
+вывод
+```
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+2021/11/28 18:43:16 [emerg] 1#1: bind() to 0.0.0.0:80 failed (98: Address already in use)
+nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)
+```
+
+*** Docker networks
+4. На docker-host машине создана ссылка
+```
+ssh -i ~/.ssh/id_rsa -l yc-user `docker-machine ip docker-host`
+sudo ln -s /var/run/docker/netns /var/run/netns
+```
+5. Запуск контейнеров с использованием драйверов none и host и проверка изменения списка namespace-ов
+*None network*
+```
+docker run --network none -d nginx - несколько раз
+docker ps
+```
+вывод:
+```
+effb761e1f43   nginx     "/docker-entrypoint.…"   3 seconds ago    Up 2 seconds              hopeful_aryabhata
+74d3ca61e120   nginx     "/docker-entrypoint.…"   13 seconds ago   Up 12 seconds             adoring_northcutt
+55f52451df1d   nginx     "/docker-entrypoint.…"   56 seconds ago   Up 55 seconds             gallant_poincare
+```
+Проверка namespaces
+```
+docker-machine ssh docker-host sudo ip netns
+```
+вывод:
+```
+7c8ad8c82169
+a35a48508504
+6862ef519d67
+default
+```
+
+*Host network*
+```
+docker kill $(docker ps -q)
+docker run --network host -d nginx - несколько раз
+docker ps
+```
+вывод
+```
+CONTAINER ID   IMAGE     COMMAND                  CREATED         STATUS         PORTS     NAMES
+019dd436275c   nginx     "/docker-entrypoint.…"   7 seconds ago   Up 6 seconds             agitated_villani
+```
+Проверка namespaces
+```
+docker-machine ssh docker-host sudo ip netns
+```
+вывод
+```
+default
+```
+### Bridge network driver
+1. Созданы сети
+```
+docker network create back_net --subnet=10.0.2.0/24
+```
+2. Запуск проекта reddit в 2-х сетях
+```
+docker run -d --network=back_net --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+docker run -d --network=back_net --network-alias=post vlyulin/post:1.0
+docker run -d --network=back_net --network-alias=comment vlyulin/comment:1.0
+docker run -d --network=front_net -p 9292:9292 vlyulin/ui:2.0
+```
+3. Подключение post и comment во вторую сеть
+```
+-- post
+docker network connect front_net 7d1b4b0d8efea2036605f37ffb86f751fb7241e2bb1c433b41ececca646ba197
+-- comment
+docker network connect front_net c0bf2322a441d8ef43868fd11d96a06f85f1c316480b708f20ef506bcf1cbd3a
+```
+### docker-compose
+1. Установлен docker-compose
+```
+pip install docker-compose
+```
+2. Создан файл src\docker-compose.yml 
+3. Сборка и запуск
+```
+export USERNAME=vlyulin
+docker-compose up -d 
+docker-compose ps
+```
+вывод
+```
+ubuntu@vlulinhp:~/vlyulin_microservices/src”$ export USERNAME=vlyulin
+ubuntu@vlulinhp:~/vlyulin_microservices/src”$ docker-compose up -d
+Creating network "src_reddit" with the default driver
+Creating volume "src_post_db" with default driver
+Pulling post_db (mongo:3.2)...
+3.2: Pulling from library/mongo
+a92a4af0fb9c: Pull complete
+74a2c7f3849e: Pull complete
+927b52ab29bb: Pull complete
+e941def14025: Pull complete
+be6fce289e32: Pull complete
+f6d82baac946: Pull complete
+7c1a640b9ded: Pull complete
+e8b2fc34c941: Pull complete
+1fd822faa46a: Pull complete
+61ba5f01559c: Pull complete
+db344da27f9a: Pull complete
+Digest: sha256:0463a91d8eff189747348c154507afc7aba045baa40e8d58d8a4c798e71001f3
+Status: Downloaded newer image for mongo:3.2
+Creating src_comment_1 ... done
+Creating src_ui_1      ... done
+Creating src_post_db_1 ... done
+Creating src_post_1    ... done
+ubuntu@vlulinhp:~/vlyulin_microservices/src”$ docker-compose ps
+    Name                  Command             State                    Ports
+----------------------------------------------------------------------------------------------
+src_comment_1   puma                          Up
+src_post_1      python3 post_app.py           Up
+src_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp
+src_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp,:::9292->9292/tcp
+```
+#### Задание: Изменить docker-compose под кейс с множеством сетей, сетевых алиасов (стр 18).
+1. В файле src/docker-compose.yml указываем сети
+```
+networks:
+  front_net:
+  back_net:
+```
+2. Указываем требуемые сети для каждого контейнера. Например:
+```
+  comment:
+    build: ./comment
+    image: ${USERNAME}/comment:1.0
+    networks:
+      - back_net
+      - front_net
+```
+#### Задание: Параметризуйте с помощью переменных окружений: порт публикации сервиса ui, версии сервисов
+1. Создан файл .env
+```
+USERNAME=vlyulin
+UI_PORT=80
+UI_VER=1.0
+POST_VER=1.0
+COMMENT_VER=1.0
+```
+2. .env добавлен в .gitignore. Создан файл .env.example
+3. Проверка
+```
+docker-compose up -d
+```
+5. Наименования проекта указывается ключом -p
+```
+docker-compose -p dockermicroservices up -d
+```
+
+#### Задание со *
+1. Создан файл docker-compose.override.yml
+2. Изменение исходного кода без пересборки образов можно выполнять примонтировав в директорию /app подключаемый volume в которую установить новую версию приложения.
+Это можно сделать добавив следующий фрагмент в файл docker-compose.override.yml:
+```
+post:
+    volumes:
+    - post-py:/app
+```
+2. Запуск приложения выполняется командой
+```
+docker-compose up -d
+```
+Объединение файлов docker-compose.yml и docker-compose.override.yml в одну конфигурацию произойдет автоматически.
+Главное, чтобы они были в директории, где выполняется команда.
+Если требуется указать путь к файлу, то используется флаг -f.
+https://docs.docker.com/compose/reference/

@@ -1,0 +1,36 @@
+REPOSITORY                TAG       IMAGE ID       CREATED         SIZE
+vlyulin/ubuntu-tmp-file   latest    685b449b6571   2 minutes ago   63.1MB
+ubuntu                    18.04     5a214d77f5d7   6 weeks ago     63.1MB
+hello-world               latest    feb5d9fea6a5   7 weeks ago     13.3kB
+
+Задание со *
+Сравните вывод двух следующих команд
+$ docker inspect <u_container_id> 
+$ docker inspect <u_image_id>
+На основе вывода команд объясните чем отличается контейнер от
+образа.
+
+В image все слои read-only.
+Контейнер создается на основе образа, информация о котором показывается в параметре:
+"Image": "sha256:5a214d77f5d747e6ed81632310baa6190301feeb875cf6bf9da560108fa09972"
+
+Помимо параметров необходимых для запуска, таких как сетевые настройки "NetworkSettings", состояние контейнера "State", пути к лог файлам "LogPath" и т.д.
+Главное, что при создании контейнера сверху добавляется еще один слой, который по умолчанию доступен для записи:
+
+"GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/9a2f217f173c4b83415b2adf0361aa9a9c556ebfdbdb90541e66f67143b33248-init/diff:/var/lib/docker/overlay2/8fe541b91b92462055c5eef475ec0ea16b8f2579ef9ac49114a5bbd41227eacf/diff",
+                "MergedDir": "/var/lib/docker/overlay2/9a2f217f173c4b83415b2adf0361aa9a9c556ebfdbdb90541e66f67143b33248/merged",
+                "UpperDir": "/var/lib/docker/overlay2/9a2f217f173c4b83415b2adf0361aa9a9c556ebfdbdb90541e66f67143b33248/diff",
+                "WorkDir": "/var/lib/docker/overlay2/9a2f217f173c4b83415b2adf0361aa9a9c556ebfdbdb90541e66f67143b33248/work"
+            },
+            "Name": "overlay2"
+        },
+
+Доступность для записи определяется:
+"ReadonlyRootfs": false
+
+Но можно изменить это указав параметр --read-only при запуске.
+docker run --read-only
+/* Add a --read-only flag at a container's runtime to enforce the container's root filesystem to be mounted as read only. */
+

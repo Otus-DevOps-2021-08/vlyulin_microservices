@@ -1,6 +1,15 @@
+<<<<<<< HEAD
 # Set to true to add assignees to pull requests
 addAssignees: true
 
 # A list of reviewers to be added to pull requests (GitHub user name)
 reviewers:
   - mrgreyves
+=======
+# Set to true to add assignees to pull requests
+addAssignees: true
+
+# A list of reviewers to be added to pull requests (GitHub user name)
+reviewers:
+  - mrgreyves
+>>>>>>> 37b509f25daa1a4589e114ede1ee7696244bed7f

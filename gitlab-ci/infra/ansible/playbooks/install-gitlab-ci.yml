@@ -1,0 +1,99 @@
+---
+- name: install gitlab-ci
+  hosts: all
+  become: true
+  tasks:
+  ##### Create directories
+  - name: create directories /srv/gitlab/config
+    ansible.builtin.file:
+      path: /srv/gitlab/config
+      owner: ubuntu
+      group: ubuntu
+      state: directory
+      
+  - name: create directories /srv/gitlab/data
+    ansible.builtin.file:
+      path: /srv/gitlab/data
+      owner: ubuntu
+      group: ubuntu
+      state: directory
+
+  - name: create directories /srv/gitlab/logs 
+    ansible.builtin.file:
+      path: /srv/gitlab/logs 
+      owner: ubuntu
+      group: ubuntu
+      state: directory
+
+  - name: install pip
+    apt:
+      name: python-pip
+      # state: latest
+      update_cache: yes
+      state: present
+
+  - name: Install aptitude using apt
+    apt: name=aptitude state=latest update_cache=yes force_apt_get=yes
+
+  - name: Install required system packages
+    apt: name={{ item }} state=latest update_cache=yes
+    loop: [ 'apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common', 'python3-pip', 'virtualenv', 'python3-setuptools']
+
+  - name: Add Docker GPG apt Key
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: Add Docker Repository
+    apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu bionic stable
+      state: present
+
+  - name: Update apt and install docker-ce
+    apt: update_cache=yes name=docker-ce state=latest
+
+  - name: Install Docker Module for Python
+    pip:
+      name: docker
+  
+  # - name: Install Docker Module for Python
+  #  pip:
+  #    name: docker
+  #    executable: pip
+
+  - name: adding user ubuntu to group docker for possibility to use docker
+    user:
+      name: ubuntu
+      groups: docker
+      append: yes
+    become: yes
+
+  ##### Relogin to ubuntu after adding ubuntu to docker group
+  - name: reset ssh connection
+    meta: reset_connection
+
+  #####
+  - name: d1
+    debug: var=hostvars[inventory_hostname].ansible_host
+  
+  ##### community.docker.docker_container:
+  ##### Create container wit GitLab
+  - name: Create a data container
+    community.docker.docker_container:
+      name: gitlab
+      image: 'gitlab/gitlab-ce:latest'
+      restart_policy: always
+      hostname: 'gitlab.example.com'
+      env:
+        GITLAB_OMNIBUS_CONFIG: |
+          external_url "http://{{ hostvars[inventory_hostname].ansible_host }}" |
+          GITLAB_ROOT_EMAIL="root@local" |
+          GITLAB_ROOT_PASSWORD="12345678"
+      ports:
+        - '80:80'
+        - '443:443'
+        - '2222:22'
+      volumes:
+        - '/srv/gitlab/config:/etc/gitlab'
+        - '/srv/gitlab/logs:/var/log/gitlab'
+        - '/srv/gitlab/data:/var/opt/gitlab'

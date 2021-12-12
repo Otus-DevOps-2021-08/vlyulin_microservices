@@ -27,6 +27,10 @@ build_job:
     - echo 'Building'
     - docker build -t my-reddit-docker-image .
     - docker run my-reddit-docker-image
+  only: 
+    - branches
+  except:
+    - master
 
 test_unit_job:
   stage: test

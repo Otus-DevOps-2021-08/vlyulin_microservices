@@ -1227,7 +1227,11 @@ ansible-galaxy collection install community.general
       project: homework/example
 
 ```
-Завершается с ошибкой
+3. Попытка установки
+```
+ansible-playbook ./playbooks/install-runner.yml
+```
+Завершается с ошибкой, для котоорой не смог найти решения
 ![](img/CI-CD-gitlab_runner-error.png)
 
 

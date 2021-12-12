@@ -1147,6 +1147,8 @@ branch review:
 ![](img/CI-CD-branch-envs.png)
 
 #### 10.1*. Запуск reddit в контейнере (пожеланию)
+>**_Note_**: см. .gitlab-ci-with-docker-build.yml
+
 1. Регистрация runner использующего Docker executor
 ```
 docker exec -it gitlab-runner gitlab-runner register -n --url http://51.250.1.180 --name MyDockerRunner --registration-token "h-kRKDPYTmB_TuKLzM79" --executor docker --docker-image "docker:19.03.12" --docker-privileged --docker-volumes "/certs/client"
@@ -1162,7 +1164,7 @@ ENV REPO_NAME=vlyulin/reddit
 ENV DEPLOY_USER=deploy
 RUN cd /reddit && ruby simpletest.rb
 ```
-3. Добавлена задача в .gitlab-ci.yml для формирования image
+3. Добавлена задача в .gitlab-ci-with-docker-build.yml для формирования image
 ```
 # before_script: 
 #  - cd reddit 

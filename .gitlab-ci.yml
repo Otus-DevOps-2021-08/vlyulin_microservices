@@ -10,9 +10,9 @@ stages:
 variables: 
   DATABASE_URL: 'mongodb://mongo/user_posts' 
 
-# before_script: 
-#  - cd reddit 
-#  - bundle install 
+before_script: 
+ - cd reddit 
+ - bundle install 
 
 build_job:
   stage: build
@@ -27,16 +27,13 @@ build_job:
     - echo 'Building'
     - docker build -t my-reddit-docker-image .
     - docker run my-reddit-docker-image
-  only: 
-    - branches
-  except:
-    - master
 
 test_unit_job:
   stage: test
-  image: my-reddit-docker-image
+  services: 
+    - mongo:latest 
   script: 
-    - docker run my-reddit-docker-image sh -c "ruby simpletest.rb"
+    - ruby simpletest.rb
 
 test_integration_job:
   stage: test

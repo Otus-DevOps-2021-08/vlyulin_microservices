@@ -1111,7 +1111,7 @@ git push gitlab gitlab-ci-1
 15. Проверено появление окружения dev
 ![](img/CI-CD-dev-environment.png)
 
-####  Добавление новых окружений
+#### Добавление новых окружений
 16. В файле .gitlab-ci.yml добавлены два этапа stage и production
 17. Pipeline теперь выглядит следующим образом:
 ![](img/CI-CD-staging-production-pipeline.png)
@@ -1200,7 +1200,7 @@ test_unit_job:
 Инструкция по установке: https://docs.gitlab.com/ee/administration/packages/container_registry.html
 Начал устанавливать, но не получилось.
 
-#### 10.2*. Автоматизация развёртывания GitLabRunner (по желанию)
+#### 10.2*. Автоматизация развёртывания GitLabRunner
 >**_Note_**: https://docs.ansible.com/ansible/latest/collections/community/general/gitlab_runner_module.html
 1. Установка community.general.gitlab_runner для Create, modify and delete GitLab Runners.
 ```

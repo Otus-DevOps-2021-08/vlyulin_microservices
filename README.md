@@ -1229,3 +1229,5 @@ ansible-galaxy collection install community.general
 ```
 Завершается с ошибкой
 ![](img/CI-CD-gitlab_runner-error.png)
+
+

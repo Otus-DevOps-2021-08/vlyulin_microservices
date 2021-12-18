@@ -6,6 +6,7 @@ vlyulin microservices repository
 * [Module hw12-docker-2](#Module-hw12-docker-2)
 * [Module hw13-docker-3](#Module-hw13-docker-3)
 * [Module hw14-docker-4](#Module-hw14-docker-4)
+* [Module gitlab-ci-1](#Module-gitlab-ci-1)
 
 # Student
 `
@@ -927,3 +928,312 @@ docker-compose up -d
 Главное, чтобы они были в директории, где выполняется команда.
 Если требуется указать путь к файлу, то используется флаг -f.
 https://docs.docker.com/compose/reference/
+
+## Module gitlab-ci-1 Gitlab CI. Построение процесса непрерывной интеграции. <a name="Module-gitlab-ci-1"></a>
+> Цель: В данном дз студент установит и произведет первичную настройку Gitlab CI. Напишет и настроит первый pipeline.
+> В данном задании тренируются навыки: установки и настройки Gitlab CI, написания пайплайнов.
+> Цели задания:
+> Подготовить инсталляцию Gitlab CI
+> Подготовить репозиторий с кодом приложения
+> Описать для приложения этапы пайплайна
+> Определить окружения
+
+### Создание виртуальной машины для Gitlab CI
+1. В директории gitlab-ci\infra\terraform созданы скрипты для создания виртуальной машины.
+2. Выполнена проверка скриптов
+```
+terraform validate
+terraform plan
+```
+3. Выполнено создание виртуальной машины
+```
+terraform apply -auto-approve=true
+```
+вывод
+```
+yandex_compute_instance.gitlab-ci[0]: Creating...
+yandex_compute_instance.gitlab-ci[0]: Still creating... [10s elapsed]
+yandex_compute_instance.gitlab-ci[0]: Still creating... [20s elapsed]
+yandex_compute_instance.gitlab-ci[0]: Creation complete after 22s [id=fhmgjtqtgijjr073jilv]
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+internal_ip_address_app = [
+  "10.128.0.7",
+]
+```
+### Установка Docker
+>**_Note**: установка вручную https://docs.docker.com/engine/install/ubuntu/
+
+1. Установлен Docker на созданную виртуальную машину в Yandex Cloud
+```
+docker-machine create \
+  --driver generic \
+  --generic-ip-address=51.250.1.180 \
+  --generic-ssh-user ubuntu \
+  --generic-ssh-key ~/.ssh/ubuntu/ubuntu \
+  gitlab-docker-host
+
+eval $(docker-machine env gitlab-docker-host)
+```
+где 51.250.1.180 - это <ПУБЛИЧНЫЙ_IP_СОЗДАНОГО_ВЫШЕ_ИНСТАНСА>
+
+вывод
+```
+Running pre-create checks...
+Creating machine...
+(gitlab-docker-host) Importing SSH key...
+Waiting for machine to be running, this may take a few minutes...
+Detecting operating system of created instance...
+Waiting for SSH to be available...
+Detecting the provisioner...
+Provisioning with ubuntu(systemd)...
+Installing Docker...
+Copying certs to the local machine directory...
+Copying certs to the remote machine...
+Setting Docker configuration on the remote daemon...
+Checking connection to Docker...
+Docker is up and running!
+To see how to connect your Docker Client to the Docker Engine running on this virtual machine, run: docker-machine env gitlab-docker-host
+```
+
+2. Проверка, что gitlab-docker-host успешно создан
+```
+docker-machine ls
+```
+вывод
+```
+NAME                 ACTIVE   DRIVER    STATE     URL                       SWARM   DOCKER      ERRORS
+docker-host                   generic   Timeout
+gitlab-docker-host   -        generic   Running   tcp://51.250.1.180:2376           v20.10.11
+```
+3. Установлен community.docker.docker_container
+```
+ansible-galaxy collection install community.docker
+```
+4. Создан playbook install-gitlab-ci.yml
+5. Выполнена установка gitlab-ci
+```
+ansible-playbook ./playbooks/install-gitlab-ci.yml
+```
+6. Проверка работоспособности
+```
+http://51.250.1.180
+```
+где 51.250.1.180 - <ПУБЛИЧНЫЙ_IP_СОЗДАНОГО_ВЫШЕ_ИНСТАНСА>
+В результате видна страница следующего вида
+![](img/GitLabPage.png)
+
+8. Как войти?
+Имя пользователя: root
+Палоль можно получить зайдя на gitlab-docker-host
+```
+docker-machine ssh gitlab-docker-host
+sudo docker exec -it gitlab grep 'Password:' /etc/gitlab/initial_root_password
+```
+вывод
+```
+Password: zG87QzFcL+aXB6Z6L3ZOg...
+```
+9. В GitLab создана группа homework
+10. В группе homework создан проект example
+11. Создание отдельной git ветки в репозитории infra и добавления remote репозитория
+```
+git checkout -b gitlab-ci-1 
+git remote add gitlab http://51.250.1.180/homework/example.git
+git push gitlab gitlab-ci-1
+```
+#### Определение CI/CD Pipeline
+1. В корне репозитория infra создан файл .gitlab-ci.yml
+2. Изменения переданы в репозиторий
+```
+git add .gitlab-ci.yml
+git commit -m "add pipeline definition"
+git push gitlab gitlab-ci-1
+```
+3. Так как нет runner, то pipeline в статусе pending
+![](img/CI-CD-In-Progress.png)
+
+4. Получение токена для регистрации runner.
+На странице Gitlab: Settings -> CI/CD -> Pipelines -> Runners скопировать token
+![](img/runner-token.png)
+
+5. На сервере, где работает Gitlab CI - gitlab-docker-host, выполнена команда
+```
+docker run -d --name gitlab-runner --restart always -v /srv/gitlab-runner/config:/etc/gitlab-runner -v /var/run/docker.sock:/var/run/docker.sock gitlab/gitlab-runner:latest
+```
+6. Регистрация раннера
+```
+docker exec -it gitlab-runner gitlab-runner register \ 
+    --url http://51.250.1.180 \ 
+    --non-interactive \ 
+    --locked=false \ 
+    --name DockerRunner \ 
+    --executor docker \ 
+    --docker-image alpine:latest \ 
+    --docker-privileged job
+    --registration-token h-kRKDPYTmB_TuKLzM79 \
+    --tag-list "linux,xenial,ubuntu,docker" \ 
+    --run-untagged
+```
+или
+```
+docker exec -it gitlab-runner gitlab-runner register --url http://51.250.1.180 --non-interactive --locked=false --name DockerRunner --executor docker --docker-image alpine:latest --docker-privileged job --registration-token h-kRKDPYTmB_TuKLzM79 --tag-list "linux,xenial,ubuntu,docker" --run-untagged
+```
+7. Проверка пайплайна
+![](img/CI-CD-passed-pipeline.png)
+
+#### Добавлен Reddit
+8. Добавлен Reddit в проект
+```
+git clone https://github.com/express42/reddit.git && rm -rf ./reddit/.git 
+git add reddit/ 
+git commit -m "Add reddit app" 
+git push gitlab gitlab-ci-1
+```
+9. Внесены изменения в .gitlab-ci.yml 
+10. Добавлен файл simpletest.rb
+11. Изменения сохранены в GitLab
+```
+git add .
+git commit -m "Add reddit app"
+git push gitlab gitlab-ci-1
+```
+12. Проверка паплайна
+![](img/CI-CD-passed-reddit-app.png)
+![](img/CI-CD-test_unit_job.png)
+
+#### Добавление окружения dev
+13. В файле .gitlab-ci.yml переименован stage deploy в review и для него добавлено описание окружения dev.
+14. Изменения переданы в GitLab
+15. Проверено появление окружения dev
+![](img/CI-CD-dev-environment.png)
+
+#### Добавление новых окружений
+16. В файле .gitlab-ci.yml добавлены два этапа stage и production
+17. Pipeline теперь выглядит следующим образом:
+![](img/CI-CD-staging-production-pipeline.png)
+![](img/CI-CD-stage-prod-environments.png)
+
+#### Условия и ограничения
+18. Добавление проверки tag версии как необходимого условия для выполнения условия запуска job (директива only) к этапам staging и production
+19. Изменения переданы в GitLab с указанием tag
+```
+git commit -am '#4 add logout button to profile page' 
+git tag 2.4.10 
+git push gitlab gitlab-ci-1 --tags
+```
+![](img/CI-CD-stage-prod-tag.png)
+![](img/CI-CD-stage-checking-tag.png)
+
+#### Динамические окружения
+>**_Note_**: Динамические окружения позволяют иметь выделенный стенд для, например, каждой feature-ветки в git.
+20. В файл .gitlab-ci.yml добавлена  ещё  одна  задача branch review, которая определяет  динамическое
+окружение для каждой ветки в репозитории, кроме ветки master.
+```
+branch review: 
+  stage: review
+  script: echo "Deploy to $CI_ENVIRONMENT_SLUG" 
+  environment: 
+    name: branch/$CI_COMMIT_REF_NAME 
+    url: http://$CI_ENVIRONMENT_SLUG.example.com 
+  only: 
+    - branches
+  except:
+    - master
+```
+![](img/CI-CD-branch-envs.png)
+
+#### 10.1*. Запуск reddit в контейнере (пожеланию)
+>**_Note_**: см. .gitlab-ci-with-docker-build.yml
+
+1. Регистрация runner использующего Docker executor
+```
+docker exec -it gitlab-runner gitlab-runner register -n --url http://51.250.1.180 --name MyDockerRunner --registration-token "h-kRKDPYTmB_TuKLzM79" --executor docker --docker-image "docker:19.03.12" --docker-privileged --docker-volumes "/certs/client"
+```
+2. Создан Dokerfile
+```
+FROM ruby:2.4.2
+
+ADD ./reddit /reddit
+RUN cd /reddit && ls && bundle install
+ENV SERVER_IP=51.250.1.180
+ENV REPO_NAME=vlyulin/reddit
+ENV DEPLOY_USER=deploy
+RUN cd /reddit && ruby simpletest.rb
+```
+3. Добавлена задача в .gitlab-ci-with-docker-build.yml для формирования image
+```
+# before_script: 
+#  - cd reddit 
+#  - bundle install 
+
+build_job:
+  stage: build
+  image: docker:19.03.12
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  services:
+    - docker:19.03.12-dind
+  before_script:
+    - docker info
+  script:
+    - echo 'Building'
+    - docker build -t my-reddit-docker-image .
+    - docker run my-reddit-docker-image
+```
+![](img/CI-CD-build-job.png)
+
+4. Задача для выполнения теста не выполняется, так как не находит созданный image
+```
+test_unit_job:
+  stage: test
+  image: my-reddit-docker-image
+  script: 
+    - docker run my-reddit-docker-image sh -c "ruby simpletest.rb"
+```
+![](img/CI-CD-test-unit-job.png)
+
+Нужен container registry: Packages & Registries > Container Registry.
+А у меня его нет.
+
+Инструкция по установке: https://docs.gitlab.com/ee/administration/packages/container_registry.html
+Начал устанавливать, но не получилось.
+
+#### 10.2*. Автоматизация развёртывания GitLabRunner
+>**_Note_**: https://docs.ansible.com/ansible/latest/collections/community/general/gitlab_runner_module.html
+1. Установка community.general.gitlab_runner для Create, modify and delete GitLab Runners.
+```
+ansible-galaxy collection install community.general
+``` 
+2. Создание playbook для установки gitlab_runner (файл gitlab-ci\infra\ansible\playbooks\install-runner.yml)
+```
+---
+- name: install runner
+  hosts: all
+  become: true
+  tasks:
+  - name: Install aptitude using apt
+    apt: name=python-gitlab state=latest update_cache=yes force_apt_get=yes
+  
+  - name: Register runner for example project
+    gitlab_runner:
+      api_url: http://51.250.1.180/
+      api_token: "xuL79voqeZoVYyc64fx-"
+      registration_token: h-kRKDPYTmB_TuKLzM79
+      description: MyProject runner
+      state: present
+      active: True
+      project: homework/example
+
+```
+3. Попытка установки
+```
+ansible-playbook ./playbooks/install-runner.yml
+```
+Завершается с ошибкой, для котоорой не смог найти решения
+![](img/CI-CD-gitlab_runner-error.png)
+
+

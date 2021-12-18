@@ -1,9 +1,0 @@
-cloud_id                  = "b1g8hotu"
-folder_id                 = "b1g97nk4"
-subnet_id                 = "e9b69fs7"
-zone                      = "a"
-public_key_path           = "~/.ssh/ubuntu/ubuntu.pub"
-private_key_path          = "~/.ssh/ubuntu/ubuntu"
-service_account_key_file  = "terraform-key.json"
-required_number_instances = 2
-disk_image                = "fd8mskqo"

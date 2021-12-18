@@ -28,3 +28,9 @@ scrape_configs:
       - targets:
         - 'mongodb-exporter:9216'
 
+  - job_name: 'cloudprober'
+    static_configs:
+      - targets:
+        - 'cloudprober:9313'
+
+

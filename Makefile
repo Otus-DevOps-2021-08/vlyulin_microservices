@@ -9,32 +9,55 @@ up :
 stop: 
 	docker-compose --project-directory ./docker stop
 
-.PHONY: make-all
-make-all : make-ui-image make-post-image make-comment-image make-prometheus-image
+.PHONY: all
+all : ui-image post-image comment-image cloudprober-image prometheus-image
 
-.PHONY: make-ui-image
-make-ui-image : set-envs ./src/ui/docker_build.sh ./src/ui/*
+.PHONY: ui-image
+ui-image : set-envs ./src/ui/docker_build.sh ./src/ui/*
 	cd ./src/ui && bash docker_build.sh && cd ../..
 
-.PHONY: make-post-image
-make-post-image : set-envs ./src/post-py/docker_build.sh ./src/post-py/*
+.PHONY: post-image
+post-image : set-envs ./src/post-py/*
 	cd ./src/post-py && bash docker_build.sh && cd ../..
 
-.PHONY: make-comment-image
-make-comment-image : set-envs ./src/comment/docker_build.sh ./src/comment/*
+.PHONY: comment-image
+comment-image : set-envs ./src/comment/docker_build.sh ./src/comment/*
 	cd ./src/comment && bash docker_build.sh && cd ../..
 
-.PHONY: make-prometheus-image
-make-prometheus-image : set-envs ./monitoring/prometheus/Dockerfile ./monitoring/prometheus/prometheus.yml
+.PHONY: cloudprober-image
+cloudprober-image : set-envs ./monitoring/cloudprober/*
+	docker build -t $$USER_NAME/cloudprober ./monitoring/cloudprober/
+
+.PHONY: prometheus-image
+prometheus-image : set-envs ./monitoring/prometheus/*
 	docker build -t $$USER_NAME/prometheus ./monitoring/prometheus/
 
 .PHONY: push-images
-push-images : set-envs
-	docker login
+push-images : set-envs push-ui push-comment push-post push-prometheus push-cloudprober
+
+.PHONY: push-ui
+push-ui : docker-login
 	docker push $$USER_NAME/ui
+
+.PHONY: push-comment
+push-comment : docker-login
 	docker push $$USER_NAME/comment
+
+.PHONY: push-post
+push-post : docker-login
 	docker push $$USER_NAME/post
+
+.PHONY: push-prometheus
+push-prometheus : docker-login
 	docker push $$USER_NAME/prometheus
+
+.PHONY: push-cloudprober
+push-cloudprober : docker-login
+	docker push $$USER_NAME/cloudprober
+
+.PHONY: docker-login
+docker-login : 
+	docker login
 
 .PHONY: set-envs
 set-envs :

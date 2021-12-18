@@ -1402,20 +1402,50 @@ Targets:
 ![](img/Prometheus/mongodb-exporter.png)
 
 #### Задание со *
+> Добавить в Prometheus мониторинг сервисов comment, post, ui с помощью Cloudprober от Google.
+1. В директории monitoring\cloudprober создан файл настроек cloudprober.cfg для Cloudprober
+2. В директории monitoring\cloudprober создан файл Dockerfile для сборки нового имиджа содержащего образ cloudprober/cloudprober и файл настроек cloudprober.cfg
+3. В файл docker\docker-compose.yml добавлен сервис cloudprober
+4. В файл monitoring\prometheus\prometheus.yml добавлен target для Cloudprober
+5. Собрать образ cloudprober
+```
+export USER_NAME=vlyulin
+docker build -t $$USER_NAME/cloudprober ./monitoring/cloudprober/
+```
+6. Собрать образ prometheus
+```
+docker build -t $$USER_NAME/prometheus ./monitoring/prometheus/
+```
+7. Запуск приложения
+```
+docker-compose --project-directory ./docker up -d
+```
+5. Проверка работы Globeprober
+```
+http://51.250.13.185:9313/status
+```
+Вывод:
+![](img/Globeprober/gloubeprober-status.png)
+
+8. Статистика для globeprober в prometheus
+![](img/Globeprober/gloubeprober-success.png)
+
+
+#### Задание со *
 > Напиcать Makefile, который в минимальном варианте умеет:
 > 1. Билдить любой или все образы, которые сейчас используются
 > 2. Умеет пушить их в докер хаб
 1. В корне репозитария vlyulin_microservices создан файл Makefile
 2. Команды для сбора образов
 ```
-make make-ui-image
-make make-post-image
-make make-comment-image
-make make-prometheus-image
+make ui-image
+make post-image
+make comment-image
+make prometheus-image
 ```
 3. Команда сбора всех образов
 ```
-make make-all
+make all
 ```
 4. Каманда отправки образов в DockerHub
 ```

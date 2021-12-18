@@ -29,6 +29,14 @@ services:
       - front_net
       - back_net
 
+  cloudprober:
+    image: ${USERNAME}/cloudprober:${CLOUDPROBER_VER}
+    networks:
+      - front_net
+      - back_net
+    ports:
+     - '9313:9313'
+
   prometheus:
     image: ${USERNAME}/prometheus
     ports:

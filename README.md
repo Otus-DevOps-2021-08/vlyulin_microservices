@@ -7,6 +7,7 @@ vlyulin microservices repository
 * [Module hw13-docker-3](#Module-hw13-docker-3)
 * [Module hw14-docker-4](#Module-hw14-docker-4)
 * [Module gitlab-ci-1](#Module-gitlab-ci-1)
+* [Module monitoring-1](#Module-monitoring-1)
 
 # Student
 `
@@ -1236,4 +1237,226 @@ ansible-playbook ./playbooks/install-runner.yml
 Завершается с ошибкой, для котоорой не смог найти решения
 ![](img/CI-CD-gitlab_runner-error.png)
 
+## Module monitoring-1: Создание и запуск системы мониторинга Prometheus. <a name="Module-monitoring-1"></a>
+> Цель: В данном дз студент познакомится с инструментов мониторинга Prometheus. Произведет его настройку и настройку exporters.
+> В данном задании тренируются навыки: создания системы мониторинга на базе Prometheus.
+> Мониторинг состояния микросервисов, сбор метрик при помощи prometheus exporters.
+
+1. Создана ветка monitoring-1
+2. Создан Docker хост в Yandex Cloud
+```
+yc compute instance create \
+--name docker-host \
+--zone ru-central1-a \
+--network-interface subnet-name=default-ru-central1-a,nat-ip-version=ipv4 \
+--create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=15 \
+--ssh-key ~/.ssh/id_rsa.pub 
+```
+3. Инициализировано окружение Docker
+```
+docker-machine create \
+--driver generic \
+--generic-ip-address=51.250.13.185 \
+--generic-ssh-user yc-user \
+--generic-ssh-key ~/.ssh/id_rsa \
+docker-host
+
+eval $(docker-machine env docker-host)
+```
+### Запуск Prometheus
+1. Запуск Prometheus в контейнере
+```
+docker run --rm -p 9090:9090 -d --name prometheus prom/prometheus
+```
+![](img/Prometheus/first-screen.png)
+
+2. В корне репозитория microservices создана директория monitoring 
+3. Создана директория monitoring/prometheus
+4. Создан файл monitoring/prometheus/Dockerfile
+```
+FROM prom/prometheus:v2.1.0
+ADD prometheus.yml /etc/prometheus/
+```
+5. Создан файл vlyulin_microservices\monitoring\prometheus\prometheus.yml 
+```
+---
+global:
+  scrape_interval: '5s'
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+        - 'localhost:9090'
+
+  - job_name: 'ui'
+    static_configs:
+      - targets:
+        - 'ui:9292'
+
+  - job_name: 'comment'
+    static_configs:
+      - targets:
+        - 'comment:9292'
+```
+6. В директории prometheus собиран Docker образ
+```
+export USER_NAME=vlyulin
+docker build -t $USER_NAME/prometheus .
+```
+7. Сборка images для микросервисного приложения
+```
+/src/ui $ bash docker_build.sh
+/src/post-py $ bash docker_build.sh
+/src/comment $ bash docker_build.sh
+```
+Или сразу все из корня репозитория:
+```
+for i in ui post-py comment; do cd src/$i; bash docker_build.sh; cd -; done
+```
+8. Создан файл vlyulin_microservices\docker\docker-compose.yml
+9. В docker\docker-compose.yml добавлен новый сервис prometheus
+10. Запуск сервисов
+```
+docker-compose up -d
+```
+#### Мониторинг состояния микросервисов
+1. Проверка targets
+![](img/Prometheus/targets.png)
+
+#### Node exporter
+1. В \docker\docker-compose.yml добавлен новый сервис node-exporter для сбора информации о работе Docker
+хоста (виртуальной машины, где запущены контейнеры) и представлению этой информации в Prometheus.
+
+2. Настроен Prometheus для получения информации еще из одного сервиса. Для этого добавлено описание job_name: 'node' в файл monitoring\prometheus\prometheus.yml 
+3. Пересобран новый Docker для Prometheus
+```
+export USER_NAME=vlyulin
+monitoring/prometheus $ docker build -t $USER_NAME/prometheus .
+```
+4. Пересозданы сервисы
+```
+docker-compose down
+docker-compose up -d
+```
+5. Получившийся список targets
+![](img/Prometheus/targets-with-node.png)
+
+6. Проверка мониторинга
+На хост машине выполнить команды:
+```
+docker-machine ssh docker-host
+yes > /dev/null
+```
+В результате видно увеличение нагрузки
+![](img/Prometheus/targets-with-node-under-preasure.png)
+
+#### Завершение работы
+1. Размещение образов на DockerHub
+```
+docker login
+docker push $USER_NAME/ui
+docker push $USER_NAME/comment
+docker push $USER_NAME/post
+docker push $USER_NAME/prometheus
+```
+
+Ссылки на образы на docker hub:
+```
+https://hub.docker.com/repository/docker/vlyulin/ui
+https://hub.docker.com/repository/docker/vlyulin/comment
+https://hub.docker.com/repository/docker/vlyulin/post
+https://hub.docker.com/repository/docker/vlyulin/prometheus
+```
+
+2. Удалена ВМ
+```
+docker-machine rm docker-host
+yc compute instance delete docker-host
+```
+
+#### Задание со *
+> Добавить в Prometheus мониторинг MongoDB с использованием необходимого экспортера.
+1. В качестве экспортера выбран https://hub.docker.com/r/percona/mongodb_exporter
+2. В docker/docker-compose.yml файл добавлен сервис:
+```
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.30.0
+    command:
+      - '--mongodb.uri=mongodb://post_db:27017'
+    networks:
+      - back_net
+```
+В файл monitoring\prometheus\prometheus.yml добавлен target:
+```
+  - job_name: 'mongodb-node-exporter'
+    static_configs:
+      - targets:
+        - 'mongodb-exporter:9216'
+```
+
+Targets:
+![](img/Prometheus/mongodb-target.png)
+
+Метрики mongodb:
+![](img/Prometheus/mongodb-exporter.png)
+
+#### Задание со *
+> Добавить в Prometheus мониторинг сервисов comment, post, ui с помощью Cloudprober от Google.
+1. В директории monitoring\cloudprober создан файл настроек cloudprober.cfg для Cloudprober
+2. В директории monitoring\cloudprober создан файл Dockerfile для сборки нового имиджа содержащего образ cloudprober/cloudprober и файл настроек cloudprober.cfg
+3. В файл docker\docker-compose.yml добавлен сервис cloudprober
+4. В файл monitoring\prometheus\prometheus.yml добавлен target для Cloudprober
+5. Собрать образ cloudprober
+```
+export USER_NAME=vlyulin
+docker build -t $$USER_NAME/cloudprober ./monitoring/cloudprober/
+```
+6. Собрать образ prometheus
+```
+docker build -t $$USER_NAME/prometheus ./monitoring/prometheus/
+```
+7. Запуск приложения
+```
+docker-compose --project-directory ./docker up -d
+```
+5. Проверка работы Globeprober
+```
+http://51.250.13.185:9313/status
+```
+Вывод:
+![](img/Globeprober/gloubeprober-status.png)
+
+8. Статистика для globeprober в prometheus
+![](img/Globeprober/gloubeprober-success.png)
+
+
+#### Задание со *
+> Напиcать Makefile, который в минимальном варианте умеет:
+> 1. Билдить любой или все образы, которые сейчас используются
+> 2. Умеет пушить их в докер хаб
+1. В корне репозитария vlyulin_microservices создан файл Makefile
+2. Команды для сбора образов
+```
+make ui-image
+make post-image
+make comment-image
+make prometheus-image
+```
+3. Команда сбора всех образов
+```
+make all
+```
+4. Каманда отправки образов в DockerHub
+```
+make push-images
+```
+5. Команда запуска приложения
+```
+make up
+```
+6. Команда остановки приложения 
+```
+make stop
+```
 

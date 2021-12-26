@@ -5,6 +5,7 @@ nothing : ;
 up : 
 	docker-compose --project-directory ./docker up -d
 
+logging-1
 .PHONY: logging-up
 logging-up:
 	docker-compose --project-directory ./docker --file ./docker/docker-compose-logging.yml --env-file ./docker/.env.logging up -d

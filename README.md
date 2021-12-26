@@ -8,6 +8,7 @@ vlyulin microservices repository
 * [Module hw14-docker-4](#Module-hw14-docker-4)
 * [Module gitlab-ci-1](#Module-gitlab-ci-1)
 * [Module monitoring-1](#Module-monitoring-1)
+* [Module logging-1](#Module-logging-1)
 
 # Student
 `
@@ -1459,3 +1460,245 @@ make up
 ```
 make stop
 ```
+
+## Module logging-1: Логирование и распределенная трассировка <a name="Module-logging-1"></a>
+> В данном дз студент научится структурирование неструктурированные логи. Продолжит создавать централизованную систему логирования.
+> В данном задании тренируются навыки: обрабатывать логи, строить систему централизованного логирования. 
+
+1. Создана ветка logging-1
+2. Обновлен код в директории /src
+3. Собраны образы ui, comment и post с тэгами logging и отправлены в Gockerhub
+```
+export USER_NAME='vlyulin'
+cd ./src/ui && bash docker_build.sh && docker push $USER_NAME/ui
+cd ../post-py && bash docker_build.sh && docker push $USER_NAME/post
+cd ../comment && bash docker_build.sh && docker push $USER_NAME/comment
+```
+4. Подготовка окружения
+```
+  --network-interface subnet-name=default-ru-central1-a,nat-ip-version=ipv4 \
+
+yc compute instance create \
+  --name logging \
+  --zone ru-central1-a \
+  --public-address 51.250.1.180 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=15 \
+  --ssh-key ~/.ssh/id_rsa.pub \
+  --memory 4G
+
+docker-machine create \
+--driver generic \
+--generic-ip-address=51.250.1.180 \
+--generic-ssh-user yc-user \
+--generic-ssh-key ~/.ssh/id_rsa \
+logging
+
+eval $(docker-machine env logging)
+```
+
+### Логирование Docker-контейнеров
+1. Создан файл docker/docker-compose-efk.yml для установки инструментов EFK
+2. Создан logging/fluentd/Dockerfile для Fluentd
+3. Создан файл конфигурации logging/fluentd/fluent.conf
+4. Собран образ Fluentd
+```
+export USER_NAME=vlyulin
+docker build -t $USER_NAME/fluentd .
+```
+5. Запуск инструментов EFK
+```
+docker-compose --project-directory ./docker --file ./docker/docker-compose-efk.yml up -d
+```
+6.Создан файл docker/docker-compose-logging.yml для запуска образов с меткой logging.
+7. Запуск приложения
+```
+docker-compose --project-directory ./docker --file ./docker/docker-compose-logging.yml --env-file ./docker/.env.logging up -d
+```
+
+### Cбор структурированных логов
+1. Команда для просмотра логов post сервиса
+```
+docker-compose -f ./docker/docker-compose-logging.yml logs -f post
+```
+2. Настроена отправка логов во Fluentd для сервиса post в файле ./docker/docker-compose-logging.yml
+```
+…
+post:
+…
+  logging:
+    driver: "fluentd"
+    options:
+      fluentd-address: localhost:24224
+      tag: service.post
+```
+3. Запуск системы логирования. Поднятие инфраструктуры централизованной системы логирования и перезапуск сервисов приложения
+```
+docker-compose --project-directory ./docker --file ./docker/docker-compose-efk.yml up -d
+docker-compose --project-directory ./docker --file ./docker/docker-compose-logging.yml --env-file ./docker/.env.logging up -d
+```
+
+### Визуализация
+1. Просмотр логов в Kibana http://51.250.1.180:5601
+2. Создание индекса в Kibana
+Management -> Index patterns -> Create index pattern. В поле Index Pattern введен fluentd-* 
+![](img/logging/kibana-fluentd.png)
+3. Добавлен фильтр для парсинга json-логов, приходящих от сервиса post, в файл logging/fluentd/fluent.conf:
+```
+<source>
+  @type forward
+  port 24224
+  bind 0.0.0.0
+</source>
+<filter service.post>
+  @type parser
+  format json
+  key_name log
+</filter>
+<match *.**>
+  @type copy
+…
+```
+4. Пересобран образ и перезапущен сервис Fluentd:
+```
+logging/fluentd $ docker build -t $USER_NAME/fluentd .
+docker $ docker-compose -f docker-compose-efk.yml up -d fluentd
+```
+
+### Сбор неструктурированных логов
+1. Настроена отправка логов во Fluentd для сервиса ui. В файл docker/docker-compose-logging.yml добавлено:
+```
+ui:
+…
+  logging:
+    driver: "fluentd"
+    options:
+      fluentd-address: localhost:24224
+      tag: service.ui
+…
+```
+2. Для разбора неструктурированных логов сервиса ui в файл logging/fluentd/fluent.conf добавлены регулярные выражения:
+```
+<filter service.ui>
+  @type parser
+  format /\[(?<time>[^\]]*)\]  (?<level>\S+) (?<user>\S+)[\W]*service=(?<service>\S+)[\W]*event=(?<event>\S+)[\W]*(?:path=(?<path>\S+)[\W]*)?request_id=(?<request_id>\S+)[\W]*(?:remote_addr=(?<remote_addr>\S+)[\W]*)?(?:method= (?<method>\S+)[\W]*)?(?:response_status=(?<response_status>\S+)[\W]*)?(?:message='(?<message>[^\']*)[\W]*)?/
+  key_name log
+</filter>
+```
+3. Пересобран образ и перезапущен сервис Fluentd:
+```
+logging/fluentd $ docker build -t $USER_NAME/fluentd .
+docker $ docker-compose -f docker-compose-efk.yml stop fluentd
+docker $ docker-compose -f docker-compose-efk.yml up -d fluentd
+```
+
+#### Grok-шаблоны
+1. В файл logging/fluentd/fluent.conf добавлено использование grok шаблона (это именованные шаблоны регулярных выражений) для разбора логов.
+```
+…
+<filter service.ui>
+  @type parser
+  format grok
+  grok_pattern %{RUBY_LOGGER}
+  key_name log
+</filter>
+
+<filter service.ui>
+  @type parser
+  format grok
+  grok_pattern service=%{WORD:service} \| event=%{WORD:event} \| request_id=%{GREEDYDATA:request_id} \| message='%{GREEDYDATA:message}'
+  key_name message
+  reserve_data true
+</filter>
+…
+```
+2. Пересобран образ и перезапущен сервис Fluentd:
+```
+logging/fluentd $ docker build -t $USER_NAME/fluentd .
+docker $ docker-compose -f docker-compose-efk.yml stop fluentd
+docker $ docker-compose -f docker-compose-efk.yml up -d fluentd
+```
+3. Добавлен разбор ещё одного формата логов по п. 8.3.*
+```
+<filter service.ui>
+  @type parser
+  format grok
+  grok_pattern service=%{WORD:service} \| event=%{WORD:event} \| path=%{URIPATH:path} \| request_id=%{UUID:request_id} \| remote_addr=%{IP:remote_addr} \| method=%{GREEDYDATA:method} \| response_status=%{INT:response_status}
+  key_name message
+  reserve_data true
+</filter>
+```
+4. Пересобран образ и перезапущен сервис Fluentd:
+```
+logging/fluentd $ docker build -t $USER_NAME/fluentd .
+docker $ docker-compose -f docker-compose-efk.yml stop fluentd
+docker $ docker-compose -f docker-compose-efk.yml up -d fluentd
+```
+5. Изменение лога
+До:
+![](img/logging/kibana-fluentd-before-grock.png)
+
+После добавления grok
+![](img/logging/kibana-fluentd-after-grock.png)
+
+### Распределенный трейсинг
+1. В файл сервисов логирования ./docker/docker-compose-efk.yml добавлен сервис zipkin
+```
+zipkin:
+    image: openzipkin/zipkin:2.21.0
+    ports:
+      - "9411:9411"
+```
+2. В файл ./docker/docker-compose-logging.yml в сервисы добавлено
+```
+environment:
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
+```
+3. В файле ./docker/.env.logging добавлено
+```
+ZIPKIN_ENABLED=true
+```
+4. Переподнятие инфраструктуры логирования и приложения
+```
+make logging-stop
+make efk-stop
+make efk-up
+make logging-up
+```
+5. Zipkin http://51.250.1.180:9411/zipkin/
+![](img/logging/zipkin.png)
+
+### Траблшутинг UI-экспириенса 9.6.*
+1. Скачено приложение с багом в директорию ./src-bagged 
+2. Собраны образы с тэгом bagged
+```
+make bagged-images
+```
+3. Остановлено приложение с тэгами logging
+```
+make logging-stop
+```
+4. Создан файл с переменными окружения docker/.env.bagged 
+```
+UI_VER=bagged
+POST_VER=bagged
+COMMENT_VER=bagged
+CLOUDPROBER_VER=bagged
+```
+5. В Makefile добавлена команда запуска bagged приложения
+```
+.PHONY: bagged-up
+bagged-up:
+        docker-compose --project-directory ./docker --file ./docker/docker-compose-logging.yml --env-file ./docker/.env.bagged up -d
+```
+6. Запущено bagged приложение 
+```
+make bagged-up
+```
+7. Результат в http://51.250.1.180:9411/zipkin/
+![](img/logging/bagged-in-zipkin.png)
+
+8. Ошибка обращения к сервису post. Изменился ip и порт.
+![](img/logging/bagged-to-post.png)
+
+10. Рабочий вариант образения к сервису post
+![](img/logging/bagged-to-post-worked.png)

@@ -1,0 +1,10 @@
+{
+  "key": "./packer/keys.json",
+  "folder_id": "b1g97nk43unle0o4u325",
+  "zone": "ru-central1-a",
+  "subnet_id": "e9b69fs7qe127788e68g",
+  "source_image_family": "ubuntu-1604-lts",
+  "ssh_username": "ubuntu",
+  "disk_name": "ubuntu-with-docker-dsk",
+  "disk_size_gb": "5"
+}

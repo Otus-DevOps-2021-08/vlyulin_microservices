@@ -1702,3 +1702,4 @@ make bagged-up
 
 10. Рабочий вариант образения к сервису post
 ![](img/logging/bagged-to-post-worked.png)
+

@@ -5,7 +5,10 @@ services:
     volumes:
       - post_db:/data/db
     networks:
-      - back_net
+      back_net:
+        aliases:
+          - comment_db
+          - post_db
 
   ui:
     # build: ./ui

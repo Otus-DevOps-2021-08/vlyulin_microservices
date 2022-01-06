@@ -9,6 +9,7 @@ vlyulin microservices repository
 * [Module gitlab-ci-1](#Module-gitlab-ci-1)
 * [Module monitoring-1](#Module-monitoring-1)
 * [Module logging-1](#Module-logging-1)
+* [Module kubernetes-1](#Module-kubernetes-1)
 
 # Student
 `
@@ -217,6 +218,7 @@ ae2629db5090a652e04ea819b5238e9c9dfbdf6a24584359e2377d25e9b1fa47
 ```
 docker exec -it reddit bash
 mkdir /test1234
+
 touch /test1234/testfile
 rmdir /opt
 docker diff reddit
@@ -1703,3 +1705,341 @@ make bagged-up
 10. Рабочий вариант образения к сервису post
 ![](img/logging/bagged-to-post-worked.png)
 
+
+## Module kubernetes-1: Установка и настройка Kubernetes. <a name="Module-kubernetes-1"></a>
+> В данном дз студент пройдет тренинг Kubernetes The Hard Way во время которого самостоятельно развернет все компоненты системы.
+> В данном задании тренируются навыки: установки и запуска компонентов kubernetes.
+
+1. Создана ветка kubernetes-1
+2. Подготовка окружения для master node
+```                    
+// --network-interface subnet-name=default-ru-central1-a,nat-ip-version=ipv4 \
+yc compute instance create \
+  --name kubernetes-host \
+  --zone ru-central1-a \
+  --public-address 51.250.13.132 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=40,type=network-ssd \
+  --core-fraction 50 \
+  --ssh-key ~/.ssh/id_rsa.pub \
+  --memory 4G \
+  --cores 4
+
+docker-machine create \
+  --driver generic \
+  --generic-ip-address=51.250.13.132 \
+  --generic-ssh-user yc-user \
+  --generic-ssh-key ~/.ssh/id_rsa \
+  kubernetes-host
+
+eval $(docker-machine env kubernetes-host)
+```
+3. Установка telnetd
+```
+docker-machine ssh kubernetes-host
+sudo apt-get install telnetd
+```
+4. Решение проблем
+> Ошибка: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock
+Решение:
+```
+sudo chmod 666 /var/run/docker.sock
+```
+После этого работает
+```
+docker images
+```
+
+### Установка kubeadm
+> https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+> https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+
+1. Update the apt package index and install packages needed to use the Kubernetes apt repository:
+```
+docker-machine ssh kubernetes-host
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl
+```
+2. Download the Google Cloud public signing key
+```
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+```
+3. Add the Kubernetes apt repository
+```
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+```
+4. Update apt package index, install kubelet, kubeadm and kubectl, and pin their version:
+```
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+```
+### Создание cluster с помошью kubeadm
+1. Preparing the required container images 
+```
+sudo kubeadm init --apiserver-cert-extra-sans=51.250.13.132 --apiserver-advertise-address=0.0.0.0 --control-plane-endpoint=51.250.13.132 --pod-network-cidr=10.244.0.0/16
+```
+Ошибка при инсталяции
+```
+[kubelet-check] The HTTP call equal to 'curl -sSL http://localhost:10248/healthz' failed with error: Get "http://localhost:10248/healthz": dial tcp [::1]:10248: connect: connection refused.
+```
+Решение ошибки
+https://stackoverflow.com/questions/52119985/kubeadm-init-shows-kubelet-isnt-running-or-healthy
+Создать /etc/docker/daemon.json
+```
+sudo touch /etc/docker/daemon.json
+```
+Добавить в  /etc/docker/daemon.json
+```
+{
+    "exec-opts": ["native.cgroupdriver=systemd"]
+}
+```
+Выполнить
+```
+sudo systemctl daemon-reload && sudo systemctl restart docker && sudo systemctl restart kubelet
+sudo kubeadm reset
+sudo kubeadm init --apiserver-cert-extra-sans=51.250.13.132 --apiserver-advertise-address=0.0.0.0 --control-plane-endpoint=51.250.13.132 --pod-network-cidr=10.244.0.0/16
+```
+
+После этого установка прошла успешно
+```
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Alternatively, if you are the root user, you can run:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+You can now join any number of control-plane nodes by copying certificate authorities
+and service account keys on each node and then running the following as root:
+
+  kubeadm join 51.250.13.132:6443 --token tv6cz7.314bs6h193zup3pv \
+        --discovery-token-ca-cert-hash sha256:e24f767398fb00ef1c08b27af56c643b9bc022b1d31c8b2d87238145484d1915 \
+        --control-plane
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 51.250.13.132:6443 --token tv6cz7.314bs6h193zup3pv \
+        --discovery-token-ca-cert-hash sha256:e24f767398fb00ef1c08b27af56c643b9bc022b1d31c8b2d87238145484d1915
+```
+
+2. Initializing your control-plane node
+> The control-plane node is the machine where the control plane components run, including etcd (the cluster database) 
+> and the API Server (which the kubectl command line tool communicates with).
+```
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+```
+
+### Подготовка окружения для worker ноды
+1. Создание compute cloud для worker ноды
+```
+// --network-interface subnet-name=default-ru-central1-a,nat-ip-version=ipv4 \
+yc compute instance create \
+  --name worker-host \
+  --zone ru-central1-a \
+  --public-address 51.250.0.87 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=40,type=network-ssd \
+  --core-fraction 50 \
+  --ssh-key ~/.ssh/id_rsa.pub \
+  --memory 4G \
+  --cores 4
+
+docker-machine create \
+  --driver generic \
+  --generic-ip-address=51.250.0.87 \
+  --generic-ssh-user yc-user \
+  --generic-ssh-key ~/.ssh/id_rsa \
+  worker-host
+
+eval $(docker-machine env worker-host)
+```
+3. Установка telnetd
+```
+docker-machine ssh worker-host
+sudo apt-get install telnetd
+```
+4. Решение проблем
+> Ошибка: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock
+Решение:
+```
+sudo chmod 666 /var/run/docker.sock
+```
+После этого работает
+```
+docker images
+```
+5. Update the apt package index and install packages needed to use the Kubernetes apt repository:
+```
+docker-machine ssh worker-host
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl
+```
+6. Download the Google Cloud public signing key
+```
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+```
+7. Add the Kubernetes apt repository
+```
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+```
+8. Update apt package index, install kubelet, kubeadm and kubectl, and pin their version:
+```
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+```
+9. Предотвращение ошибки
+```
+[kubelet-check] The HTTP call equal to 'curl -sSL http://localhost:10248/healthz' failed with error: Get "http://localhost:10248/healthz": dial tcp [::1]:10248: connect: connection refused.
+```
+Решение ошибки
+https://stackoverflow.com/questions/52119985/kubeadm-init-shows-kubelet-isnt-running-or-healthy
+Создать /etc/docker/daemon.json
+```
+sudo touch /etc/docker/daemon.json
+```
+Добавить в  /etc/docker/daemon.json
+```
+{
+    "exec-opts": ["native.cgroupdriver=systemd"]
+}
+```
+Выполнить
+```
+sudo systemctl daemon-reload && sudo systemctl restart docker && sudo systemctl restart kubelet
+```
+ 
+10. Присоединение worker ноды к кластеру kubernete
+
+```
+Then you can join any number of worker nodes by running the following on each as root:
+
+sudo kubeadm join 51.250.13.132:6443 --token tv6cz7.314bs6h193zup3pv \
+        --discovery-token-ca-cert-hash sha256:e24f767398fb00ef1c08b27af56c643b9bc022b1d31c8b2d87238145484d1915
+```
+Вывод:
+```
+[preflight] Running pre-flight checks
+[preflight] Reading configuration from the cluster...
+[preflight] FYI: You can look at this config file with 'kubectl -n kube-system get cm kubeadm-config -o yaml'
+W0102 12:25:48.065495    6359 utils.go:69] The recommended value for "resolvConf" in "KubeletConfiguration" is: /run/systemd/resolve/resolv.conf; the provided value is: /run/systemd/resolve/resolv.conf
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+[kubelet-start] Starting the kubelet
+[kubelet-start] Waiting for the kubelet to perform the TLS Bootstrap...
+
+This node has joined the cluster:
+* Certificate signing request was sent to apiserver and a response was received.
+* The Kubelet was informed of the new secure connection details.
+
+Run 'kubectl get nodes' on the control-plane to see this node join the cluster.
+```
+
+11. Проверка присоединения worker ноды
+```
+eval $(docker-machine env kubernetes-host)
+docker-machine ssh kubernetes-host
+kubectl get nodes
+```
+вывод
+```
+NAME              STATUS     ROLES                  AGE     VERSION
+kubernetes-host   NotReady   control-plane,master   9m16s   v1.23.1
+worker-host       NotReady   <none>                 59s     v1.23.1
+```
+
+### Установка сети Calico на control-plane (она же master)
+> https://projectcalico.docs.tigera.io/getting-started/kubernetes/self-managed-onprem/onpremises
+> Install Calico with Kubernetes API datastore, 50 nodes or less
+1. Зайти на kubernetes-host
+```
+eval $(docker-machine env kubernetes-host)
+docker-machine ssh kubernetes-host
+```
+2. Download the Calico networking manifest for the Kubernetes API datastore.
+```
+curl https://docs.projectcalico.org/manifests/calico.yaml -O
+```
+3. Установка CALICO_IPV4POOL_CIDR
+```
+export CALICO_IPV4POOL_CIDR=10.244.0.0/16
+```
+4. Apply the manifest using the following command.
+```
+kubectl apply -f calico.yaml
+```
+5. Проверка
+```
+kubectl get nodes
+```
+вывод
+```
+NAME              STATUS   ROLES                  AGE   VERSION
+kubernetes-host   Ready    control-plane,master   35m   v1.23.1
+worker-host       Ready    <none>                 27m   v1.23.1
+```
+
+### Создание манифестов
+1. Создана директория kubernetes
+2. Создана директория kubernetes/reddit
+3. В директории kubernetes/reddit созданы файлв comment-deployment.yml mongo-deployment.yml post-deployment.yml ui-deployment.yml 
+4. На хоте kubernetes-host.yml применен манифест post-deployment.yml
+```
+kubectl apply -f post-deployment.yml
+```
+5. Проверка установки
+```
+kubectl get pods
+```
+вывод
+```
+NAME                              READY   STATUS    RESTARTS   AGE
+post-deployment-76f7d9fc8-x8bn2   1/1     Running   0          3m59s
+```
+
+### Задание ** 
+> Опишите установку кластера k8s с помощью terraform и ansible
+> В директории kubernetes создайте директории terraform и ansible (все манифесты должны хранится там)
+1. Созданы диретории kubernetes\terraform и kubernetes\ansible
+2. Созданы соответствующие скрипты
+3. Создание окружений и установка kubernetes
+```
+cd kubernetes/terraform
+terraform apply -auto-approve
+cd kubernetes/ansible
+ansible-playbook -i environments/stage/yacloud_compute.yml playbooks/cluster-init.yml
+ansible-playbook -i environments/stage/yacloud_compute.yml playbooks/worker-init.yml
+``` 
+
+![](img/kubernetes/kubernetes-1.png)
+
+4. Проверка
+```
+ubuntu@fhmjh5jt0ptncqi42poo:~$ kubectl get nodes
+NAME                   STATUS   ROLES                  AGE     VERSION
+fhm1cdta2rof67e82cbq   Ready    <none>                 55s     v1.23.1
+fhm83323i9eopa5imtpg   Ready    <none>                 55s     v1.23.1
+fhmjh5jt0ptncqi42poo   Ready    control-plane,master   7m17s   v1.23.1
+```
+5. Устанока post-deployment.yml
+```
+kubectl apply -f post-deployment.yml
+```
+вывод:
+```
+ubuntu@fhmjh5jt0ptncqi42poo:~$ kubectl get pods
+NAME                              READY   STATUS    RESTARTS   AGE
+post-deployment-76f7d9fc8-79lk5   1/1     Running   0          62s
+post-deployment-76f7d9fc8-q7gwd   1/1     Running   0          2m13s
+```

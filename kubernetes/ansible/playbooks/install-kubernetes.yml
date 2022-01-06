@@ -1,0 +1,112 @@
+---
+# Based on https://www.linuxsysadmins.com/install-kubernetes-cluster-with-ansible/
+- name: install kubernetes
+  hosts: all
+  tasks:
+
+  - name: Make the Swap inactive
+    become: true
+    command: swapoff -a
+
+  - name: Remove Swap entry from /etc/fstab.
+    become: true
+    lineinfile:
+      dest: /etc/fstab
+      regexp: swap
+      state: absent
+
+
+  - name: Install required system packages
+    become: true
+    with_items: ['telnetd', 'apt-transport-https', 'ca-certificates', 'curl', 'gnupg-agent', 'software-properties-common', 'vim']
+    apt: name={{ item }} state=present update_cache=yes
+  
+  - name: Add Docker GPG apt Key
+    become: true
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: Add Docker Repository
+    become: true
+    apt_repository:
+      repo:  deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
+      state: present
+      filename: docker
+      mode: 0600
+
+  - name: Install Docker Engine
+    become: true
+    apt:
+      name:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+      state: present
+
+  - name: Enable service docker, and enable persistently
+    service: 
+      name: docker
+      enabled: yes
+
+  - name: Set 0666 permission to /var/run/docker.sock
+    become: true
+    file: 
+      path: /var/run/docker.sock
+      state: touch
+      mode: 0666
+  
+  - name: add Kubernetes apt-key
+    become: true
+    apt_key:
+      url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+      state: present
+
+  - name: add Kubernetes APT repository
+    become: true
+    apt_repository:
+      repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+      state: present
+      filename: kubernetes
+      mode: 0600
+
+  - name: Installing Kubernetes Cluster Packages.
+    become: true
+    apt: 
+      name: 
+        - kubeadm
+        - kubectl
+        - kubelet
+      state: present
+
+  - name: Enable service kubelet, and enable persistently
+    service: 
+      name: kubelet
+      enabled: yes
+
+  # - name: Reboot all the kubernetes nodes.
+  #  reboot:
+  #    post_reboot_delay: 10
+  #    reboot_timeout: 40
+  #    connect_timeout: 60
+  #    test_command: uptime
+
+  - name: Prevent python from being upgraded
+    become: true
+    with_items: ['kubelet','kubeadm','kubectl']
+    dpkg_selections: 
+      name: '{{ item }}'
+      selection: hold
+
+  - name: Creating a file with content
+    become: true
+    copy:
+      dest: "/etc/docker/daemon.json"
+      content: |
+        {
+          "exec-opts": ["native.cgroupdriver=systemd"]
+        }
+
+  - name: Ensure systemd is reloaded if varnish.service has changed
+    become: true
+    shell: sudo systemctl daemon-reload && sudo systemctl restart docker && sudo systemctl restart kubelet

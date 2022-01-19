@@ -10,6 +10,7 @@ vlyulin microservices repository
 * [Module monitoring-1](#Module-monitoring-1)
 * [Module logging-1](#Module-logging-1)
 * [Module kubernetes-1](#Module-kubernetes-1)
+* [Module kubernetes-3](#Module-kubernetes-3)
 
 # Student
 `
@@ -2043,3 +2044,25 @@ NAME                              READY   STATUS    RESTARTS   AGE
 post-deployment-76f7d9fc8-79lk5   1/1     Running   0          62s
 post-deployment-76f7d9fc8-q7gwd   1/1     Running   0          2m13s
 ```
+
+## Module kubernetes-3: Настройка балансировщиков нагрузки в Kubernetes и SSL­Terminating. <a name="Module-kubernetes-3"></a>
+> В данном дз студент научится подключать и использовать удаленные хранилища, публиковать сервисы.
+> В данном задании тренируются навыки: использования хранилищ, работы с Ingress контроллером.
+1. Создание кластера https://cloud.yandex.com/en-ru/docs/managed-kubernetes/quickstart
+2. Установка kubectl https://kubernetes.io/docs/tasks/tools/
+3. Add credentials to the kubectl configuration file на localhost
+```
+```
+вывод
+```
+Context 'yc-vl-kube-cluster' was added as default to kubeconfig '/home/ubuntu/.kube/config'.
+Check connection to cluster using 'kubectl cluster-info --kubeconfig /home/ubuntu/.kube/config'.
+
+Note, that authentication depends on 'yc' and its config profile 'default'.
+To access clusters using the Kubernetes API, please use Kubernetes Service Account.
+There is a new yc version '0.86.0' available. Current version: '0.82.0'.
+See release notes at https://cloud.yandex.ru/docs/cli/release-notes
+You can install it by running the following command in your shell:
+        $ yc components update
+```
+

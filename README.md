@@ -1705,7 +1705,6 @@ make bagged-up
 10. Рабочий вариант образения к сервису post
 ![](img/logging/bagged-to-post-worked.png)
 
-
 ## Module kubernetes-1: Установка и настройка Kubernetes. <a name="Module-kubernetes-1"></a>
 > В данном дз студент пройдет тренинг Kubernetes The Hard Way во время которого самостоятельно развернет все компоненты системы.
 > В данном задании тренируются навыки: установки и запуска компонентов kubernetes.

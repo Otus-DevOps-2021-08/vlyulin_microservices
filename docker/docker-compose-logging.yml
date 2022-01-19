@@ -1,0 +1,71 @@
+version: '3.3'
+services:
+  post_db:
+    image: mongo:3.2
+    
+    volumes:
+      - post_db:/data/db
+    networks:
+      back_net:
+        aliases:
+          - comment_db
+          - post_db
+
+  ui:
+    # build: ./ui
+    image: ${USERNAME}/ui:${UI_VER}
+    environment:
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
+    ports:
+      - ${UI_HOST_PORT}:${UI_DOCKER_PORT}/tcp
+    networks:
+      - front_net
+    depends_on:
+      - post
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: service.ui
+
+  post:
+    # build: ./post-py
+    image: ${USERNAME}/post:${POST_VER}
+    environment:
+      - POST_DATABASE_HOST=post_db
+      - POST_DATABASE=posts
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
+    depends_on:
+      - post_db
+    ports:
+      - "5000:5000"
+    networks:
+      - front_net
+      - back_net
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: service.post
+
+  comment:
+    # build: ./comment
+    image: ${USERNAME}/comment:${COMMENT_VER}
+    environment:
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
+    networks:
+      - front_net
+      - back_net
+      
+volumes:
+  post_db:
+
+networks:
+  back_net:
+    ipam:
+      config:
+        - subnet: 10.0.2.0/24
+  front_net:
+    ipam:
+      config:
+        - subnet: 10.0.1.0/24

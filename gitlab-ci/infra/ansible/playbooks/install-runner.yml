@@ -1,0 +1,18 @@
+---
+- name: install runner
+  hosts: all
+  become: true
+  tasks:
+  - name: Install aptitude using apt
+    apt: name=python-gitlab state=latest update_cache=yes force_apt_get=yes
+  
+  - name: Register runner for example project
+    gitlab_runner:
+      api_url: http://51.250.1.180/
+      api_token: "xuL79voqeZoVYyc64fx-"
+      registration_token: h-kRKDPYTmB_TuKLzM79
+      description: MyProject runner
+      state: present
+      active: True
+      project: homework/example
+    

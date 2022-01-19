@@ -1,0 +1,86 @@
+---
+- name: Cluster init
+  hosts: master
+  gather_facts: no
+  vars_files:
+    - vars.yml
+  tasks:
+
+  - name: get public IP
+    ipify_facts:
+    register: public_ip
+
+  - name: output
+    debug: msg="{{ public_ip.ansible_facts.ipify_public_ip }}"
+
+  - debug: 
+      msg: cidr="{{ cidr }}"
+
+  - name: Update and upgrade apt packages
+    become: true
+    apt:
+      update_cache: yes
+
+  # https://serverfault.com/questions/1049724/ansible-get-hostname-from-hosts-file
+  # https://stackoverflow.com/questions/57808932/setup-kubernetes-using-ansible
+  - name: Initialize the Kubernetes cluster using kubeadm
+    become: true
+    command: kubeadm init --apiserver-cert-extra-sans="{{ public_ip.ansible_facts.ipify_public_ip }}" --apiserver-advertise-address=0.0.0.0 --control-plane-endpoint="{{ public_ip.ansible_facts.ipify_public_ip }}" --pod-network-cidr={{cidr}}
+    run_once: true
+    delegate_to: "{{ public_ip.ansible_facts.ipify_public_ip }}"
+  
+  - pause: seconds=30
+
+  - name: Create directory for kube config.
+    # become_user: ubuntu
+    become_method: sudo
+    become: yes
+    file: 
+      path: /home/ubuntu/.kube
+      state: directory
+      owner: "ubuntu"
+      group: "ubuntu"
+      mode: 0755
+
+  - name: Copy /etc/kubernetes/admin.conf to users home directory /home/ubuntu/.kube/config.
+    # become_user: root
+    become_method: sudo
+    become: yes
+    copy:
+      src: /etc/kubernetes/admin.conf
+      dest: /home/ubuntu/.kube/config
+      remote_src: yes
+      owner: "ubuntu"
+      group: "ubuntu"
+      mode: '0644'
+
+  - pause: seconds=10
+
+  - name: Remove the cache directory.
+    become_user: ubuntu
+    become_method: sudo
+    become: yes
+    file: 
+      path: /home/ubuntu/.kube/cache
+      state: absent
+
+  - name: Create Pod Network & RBAC.
+    become_user: ubuntu
+    become_method: sudo
+    become: yes
+    command: "{{ item }}"
+    with_items: 
+       - kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+       # - kubectl apply -f {{ rbac_manifest_file }}
+
+  - pause: seconds=30
+
+  - name: Get the token for joining the nodes with Kuberentes master.
+    shell: kubeadm token create --print-join-command
+    register: kubernetes_join_command
+
+  - debug:
+      msg: "{{ kubernetes_join_command.stdout }}"
+
+  - name: Copy join command to local file.
+    local_action: copy content="{{ kubernetes_join_command.stdout_lines[0] }}" dest="/tmp/kubernetes_join_command" mode=0777

@@ -21,3 +21,4 @@ jdauphant.nginx
 *.swp
 terraform-key.json 
 terraform.tfvars
+.terraform.lock.hcl 

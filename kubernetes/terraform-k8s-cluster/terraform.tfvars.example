@@ -1,0 +1,9 @@
+cloud_id                  = "b1g8h..."
+folder_id                 = "b1g97..."
+network_id                = "enpcq..."
+subnet_id                 = "e9b37..." # Required separate subnet for k8s
+zone                      = "a"
+public_key_path           = "~/.ssh/ubuntu/ubuntu.pub"
+private_key_path          = "~/.ssh/ubuntu/ubuntu"
+service_account_key_file  = "terraform-key.json"
+k8s_service_account_id    = "ajeno3nn9sea4s88ke3n" # id for service account k8s-sa. It can be different.

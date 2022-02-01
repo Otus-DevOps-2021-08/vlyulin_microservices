@@ -10,6 +10,7 @@ vlyulin microservices repository
 * [Module monitoring-1](#Module-monitoring-1)
 * [Module logging-1](#Module-logging-1)
 * [Module kubernetes-1](#Module-kubernetes-1)
+* [Module kubernetes-2](#Module-kubernetes-2)
 
 # Student
 `
@@ -2042,3 +2043,118 @@ NAME                              READY   STATUS    RESTARTS   AGE
 post-deployment-76f7d9fc8-79lk5   1/1     Running   0          62s
 post-deployment-76f7d9fc8-q7gwd   1/1     Running   0          2m13s
 ```
+
+## Module kubernetes-2: Установка и настройка yandex cloud Kubernetes Engine, настройка локального профиля администратора для yandex cloud. <a name="Module-kubernetes-2"></a>
+> В данном дз студент развернет кластер kubernetes в yandex cloud, настроит профиль администратора, поработает с различными контроллерами.
+> В данном задании тренируются навыки: работы с кластером kubernetes в yandex cloud, настройки прав доступа, работы с контроллерами.
+
+1. Создана ветка kubernetes-2
+2. Установлен kubectl. Инструкция для установки https://kubernetes.io/docs/tasks/tools/
+3. Активирован Hyper-V по инструкции https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/quick-start/enable-hyper-v
+4. Установлен minikube по инструкции https://minikube.sigs.k8s.io/docs/start/ 
+```
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+```
+4. Запущен minikube
+```
+minikube start
+```
+5. Проверена работоспособность kubectl с помощью команды 
+```
+kubectl get nodes
+```
+6. Установка minikube добавила и установила текущим свой контекст в файл ~/.kube/config
+Проверяется командой
+```
+kubeclt config current-context
+```
+вывод
+```
+minikube
+```
+Примечание: список всех контекстов можно увидеть с помощью команды:
+```
+Список всех контекстов можно увидеть
+```
+7. Для YAML-манифестов приложения создана отдельная директория ./kubernetes/reddit
+8. В директории ./kubernetes/reddit созданы сами YAML-манифесты приложения (deployments, services, namespace).
+
+#### Dashboard
+9. В minikube проверена доступность addonа dashboard
+```
+minikube addons list
+```
+10. В minikube сделан доступным addon dashboard с помощью команды
+```
+minikube addons enable dashboard
+```
+вывод команды minikube addons list после установки dashboard
+![](img/kubernetes/dashboard.png)
+
+11. Получение списка объектов dashboard
+```
+kubectl get all -n kubernetes-dashboard
+```
+вывод:
+![](img/kubernetes/dashboard-components.png)
+
+12. Запуск dashboard:
+```
+minikube service kubernetes-dashboard -n kubernetes-dashboard
+```
+вывод
+![](img/kubernetes/dashboard-run-service.png)
+
+Вывод по указанному URL: http://127.0.0.1:40573
+![](img/kubernetes/dashboard-ui.png)
+
+#### Kubernetes в Yandex Cloud
+1. Развернут Kubernetes в Yandex Cloud Managed Service for kubernetes
+Параметры кластера:
+Имя кластера: k8s
+Cервис аккаунт: k8s-sa
+Релизный канал: RAPID
+Версия k8s: 1.19
+
+Параметры группы узлов:
+Версия k8s: 1.19
+Количество узлов: 2
+vCPU: 4
+RAM: 8
+Disk: SSD -64ГБ(минимальное значение)
+В поле Доступ добавлен свой логин и публичный ssh клюш
+
+2. Подключение к созданному k8s
+```
+yc managed-kubernetes cluster get-credentials <cluster-name> --external
+```
+В результате в файл ~/.kube/config будут добавлены user, cluster, и
+context для подключения к кластеру в Yandex Cloud.
+
+![](img/kubernetes/yc-managed-kubernates.png)
+
+Также текущий контекст будет выставлен для подключения к этому кластеру.
+Убедиться можно, введя команду: 
+```
+kubectl config current-context
+```
+3. Приложение ./kubernetes/reddit установлено в k8s
+```
+kubectl apply -f ./kubernetes/reddit/dev-namespace.yml
+kubectl apply -f ./kubernetes/reddit/ -n dev
+```
+4. Для получения URL к приложению надо выполнить команды:
+```
+kubectl get nodes -o wide
+kubectl describe service ui -n dev | grep NodePort
+```
+URL: http://<node-ip>:<NodePort>
+
+5. Cкриншот веб-интерфейча приложения в кластере k8s
+![](img/kubernetes/reddit-in-cloud.png)
+
+#### Задание *: Создание k8s кластера с помощью terraform
+1. В дирректории ./kubernetes/terraform-k8s-cluster созданы YAML-скрипты для установки k8s кластера в Yandex Cloud
+2. Выполнена установка k8s кластера в Yandex Cloud.
+

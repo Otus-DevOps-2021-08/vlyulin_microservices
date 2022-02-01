@@ -2157,4 +2157,6 @@ URL: http://<node-ip>:<NodePort>
 #### Задание *: Создание k8s кластера с помощью terraform
 1. В дирректории ./kubernetes/terraform-k8s-cluster созданы YAML-скрипты для установки k8s кластера в Yandex Cloud
 2. Выполнена установка k8s кластера в Yandex Cloud.
+3. Скриншот k8s в Yandex Cloud
+![](img/kubernetes/k8s-in-ya-cloud.png)
 

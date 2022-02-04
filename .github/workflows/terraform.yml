@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     # environment: production
     env:
-      working-directory: terraform
+      working-directory: kubernetes/terraform
       # TF_WORKSPACE: vlyulin-workspace
 
 

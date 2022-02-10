@@ -2375,8 +2375,8 @@ yc compute disk list
 | fhmodnpglr1fq31itojc | k8s  |  4294967296 | ru-central1-a | READY  |                      | disk for k8s |
 +----------------------+------+-------------+---------------+--------+----------------------+--------------+
 
-3. Создан файл mongo-pv.yml, где в volumeHandle указан идентификатор созданного диска fhmodnpglr1fq31itojc
-4. Создан mongo-pvc.yml
+3. Создан файл mongo-volume.yml, где в volumeHandle указан идентификатор созданного диска fhmodnpglr1fq31itojc
+4. Создан mongo-claim.yml
 5. Внесены изменения в mongo-deployment.yml, где используемый volume изменен с диска на persistent volume
 6. Выполнен деплоймент mongo-deployment.yml
 7. В приложении создан тестовый пост

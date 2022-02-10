@@ -1,18 +1,29 @@
 ---
-apiVersion: v1
-kind: Service
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: ui
   labels:
     app: reddit
     component: ui
 spec:
-  type: LoadBalancer
-  ports:
-  - port: 80
-    nodePort: 32092
-    protocol: TCP
-    targetPort: 9292
+  replicas: 1
   selector:
-    app: reddit
-    component: ui
+    matchLabels:
+      app: reddit
+      component: ui
+  template:
+    metadata:
+      name: ui-pod
+      labels:
+        app: reddit
+        component: ui
+    spec:
+      containers:
+      - image: tomorrowcanw8/ui
+        name: ui
+        env:
+        - name: ENV
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace

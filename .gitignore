@@ -19,3 +19,6 @@ jdauphant.nginx
 .pytest_cache
 .env
 *.swp
+terraform-key.json 
+terraform.tfvars
+.terraform.lock.hcl 

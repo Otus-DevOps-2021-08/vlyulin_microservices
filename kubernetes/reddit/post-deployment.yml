@@ -20,7 +20,7 @@ spec:
         component: post
     spec:
       containers:
-      - image: chromko/post
+      - image: tomorrowcanw8/post
         name: post
         env:
           - name: POST_DATABASE_HOST

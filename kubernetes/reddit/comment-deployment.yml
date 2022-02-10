@@ -20,7 +20,7 @@ spec:
         component: comment
     spec:
       containers:
-      - image: chromko/comment
+      - image: tomorrowcanw8/comment
         name: comment
         env:
         - name: COMMENT_DATABASE_HOST

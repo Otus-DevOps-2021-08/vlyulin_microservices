@@ -2,15 +2,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: post
+  name: ui
   labels:
     app: reddit
-    component: post
+    component: ui
 spec:
+  type: NodePort
   ports:
-  - port: 5000
+  - port: 80
+    nodePort: 32092
     protocol: TCP
-    targetPort: 5000
+    targetPort: 9292
   selector:
     app: reddit
-    component: post
+    component: ui

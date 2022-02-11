@@ -11,6 +11,7 @@ vlyulin microservices repository
 * [Module logging-1](#Module-logging-1)
 * [Module kubernetes-1](#Module-kubernetes-1)
 * [Module kubernetes-2](#Module-kubernetes-2)
+* [Module kubernetes-3](#Module-kubernetes-3)
 
 # Student
 `
@@ -1706,6 +1707,10 @@ make bagged-up
 10. Рабочий вариант образения к сервису post
 ![](img/logging/bagged-to-post-worked.png)
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> origin/main
 ## Module kubernetes-1: Установка и настройка Kubernetes. <a name="Module-kubernetes-1"></a>
 > В данном дз студент пройдет тренинг Kubernetes The Hard Way во время которого самостоятельно развернет все компоненты системы.
 > В данном задании тренируются навыки: установки и запуска компонентов kubernetes.
@@ -2067,7 +2072,7 @@ kubectl get nodes
 6. Установка minikube добавила и установила текущим свой контекст в файл ~/.kube/config
 Проверяется командой
 ```
-kubeclt config current-context
+kubectl config current-context
 ```
 вывод
 ```
@@ -2160,3 +2165,227 @@ URL: http://<node-ip>:<NodePort>
 3. Скриншот k8s в Yandex Cloud
 ![](img/kubernetes/k8s-in-ya-cloud.png)
 
+## Module kubernetes-3: Настройка балансировщиков нагрузки в Kubernetes и SSL­Terminating. <a name="Module-kubernetes-3"></a>
+> В данном дз студент научится подключать и использовать удаленные хранилища, публиковать сервисы.
+> В данном задании тренируются навыки: использования хранилищ, работы с Ingress контроллером.
+
+1. Установка kubernetes в Yandex Cloud с помошью teraform скриптов из прошлого ДЗ. Наименование кластера terraform-k8s.
+2. Добавление credentials в kubectl configuration file на localhost
+```
+yc managed-kubernetes cluster get-credentials terraform-k8s --external
+```                                                                   
+3. Проверка установки текущего контекста для kubectl
+```
+kubectl config current-context
+```
+вывод
+```
+yc-terraform-k8s
+```
+#### LoadBalancer
+1. Внесены изменения в файл ui-service.yml. Изменен типа сервиса с NodePort на LoadBalancer.
+2. Проверка сервиса ui-service
+```
+kubectl get service -n dev --selector component=ui
+```
+вывод
+```
+NAME   TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)        AGE
+ui     LoadBalancer   10.96.140.41   62.84.115.100   80:32093/TCP   2m5s
+```
+
+![](img/kubernete3/load-balancer.png)
+
+#### Ingress
+>**_Note_**: https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-operator/
+1. Создан файл nginx-ingress-controller.yaml
+2. Установка Ingress controller
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.0.0/deploy/static/provider/cloud/deploy.yaml
+```
+3. Создан ui-ingress.yml и применен
+```
+kubectl apply -f ui-ingress.yml -n dev
+```
+4. Если не работет ingress. Найти имя pod'а ingress controller
+>**_Note_**: https://docs.nginx.com/nginx-ingress-controller/troubleshooting/troubleshoot-ingress-controller/
+
+```
+kubectl get all -n ingress-nginx
+```
+![](img/kubernete3/ingress-nginx-controller.png)
+
+5. Изучить логи
+```
+kubectl logs pod/ingress-nginx-controller-65c4f84996-nwtc7 -n ingress-nginx
+```
+![](img/kubernete3/not_vallid_IngressClass.png)
+
+Нашел решение тут: https://robearlam.com/blog/nginx-ingress-breaking-change-ingress.class-now-required
+Надо добавить annotations: kubernetes.io/ingress.class: "nginx" в файл ui-ingress.yml 
+Чтобы выглядело так:
+```
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ui
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  backend:
+    serviceName: ui
+    servicePort: 80
+```
+6. Изменен для ui-service.yml type: с LoadBalance на NodePort. Применен:
+```
+kubectl apply -f ui-service.yml -n dev
+```
+7. Изменена спецификация ui-ingress c backend service на http rules
+```
+kubectl apply -f ui-ingress.yml -n dev
+```
+
+#### Secret
+1. Получить ingress IP
+```
+kubectl get ingress -n dev
+```
+![](img/kubernete3/ingress-ip.png)
+
+2. Подготовлен сертификат используя IP как CN
+```
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=62.84.117.1"
+```
+вывод
+```
+Generating a RSA private key
+.........+++++
+.............................+++++
+writing new private key to 'tls.key'
+-----
+```
+3. Загружен сертификат в кластер kubernetes 
+```
+kubectl create secret tls ui-ingress --key tls.key --cert tls.crt -n dev
+```
+вывод
+```
+secret/ui-ingress created
+```
+4. Проверка
+```
+kubectl describe secret ui-ingress -n dev
+```
+вывод
+```
+Name:         ui-ingress
+Namespace:    dev
+Labels:       <none>
+Annotations:  <none>
+
+Type:  kubernetes.io/tls
+
+Data
+====
+tls.crt:  1119 bytes
+tls.key:  1704 bytes
+```
+5. Добавлена tls спецификация в ui-ingress.yml
+```
+---
+# apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ui
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.allow-http: "false" -- Тут
+spec:
+  tls:
+  - secretName: ui-ingress -- Тут
+  rules:
+  - host: ingress-3
+    http:
+      paths:
+        - path: /*
+          pathType: Prefix
+          backend:
+            service:
+              name: ui
+              port:
+                number: 80
+```
+
+6. Выполнено применение
+```
+kubectl apply -f ui-ingress.yml -n dev
+``` 
+#### Задание со * Опишите создаваемый объект Secret в виде Kubernetes-манифеста.
+
+7. Закодированы tls сертификаты в base64
+```
+cat tls.crt | base64
+cat tls.key | base64
+```
+8. Создан tls-secret.yml и в него добавлены закодированные в base64 сертификаты
+
+9. Удален secret tls ui-ingress, который был создан руками
+```
+kubectl delete secret ui-ingress
+```
+10. Создан tls через template
+```
+kubectl create -f tls-secret.yml -n dev
+```
+#### Network Policy
+1. Создан файл mongo-network-policy.yml
+2. Применен network policy
+```
+kubectl apply -f mongo-network-policy.yml -n dev
+```
+3. Для того, чтобы post-сервис дошел до базы данных, в файл mongo-network-policy.yml добавлен блок:
+```
+    - podSelector:
+        matchLabels:
+          app: reddit
+          component: post
+```
+
+#### Хранилище для базы
+1. Cоздан диск в ya.cloud командой
+```
+yc compute disk create \
+--name k8s \
+--size 4 \
+--description "disk for k8s"
+```
+2. Список дисков
+```
+yc compute disk list
+```
+вывод
++----------------------+------+-------------+---------------+--------+----------------------+--------------+
+|          ID          | NAME |    SIZE     |     ZONE      | STATUS |     INSTANCE IDS     | DESCRIPTION  |
++----------------------+------+-------------+---------------+--------+----------------------+--------------+
+| fhmcpg9jr0nfpdbhtbn6 |      | 68719476736 | ru-central1-a | READY  | fhmb5prru1lf0rp0bpqa |              |
+| fhmjnpda5i5t5td7hus2 |      | 68719476736 | ru-central1-a | READY  | fhmr118nqrf6r1sa58b0 |              |
+| fhmodnpglr1fq31itojc | k8s  |  4294967296 | ru-central1-a | READY  |                      | disk for k8s |
++----------------------+------+-------------+---------------+--------+----------------------+--------------+
+
+3. Создан файл mongo-volume.yml, где в volumeHandle указан идентификатор созданного диска fhmodnpglr1fq31itojc
+4. Создан mongo-claim.yml
+5. Внесены изменения в mongo-deployment.yml, где используемый volume изменен с диска на persistent volume
+6. Выполнен деплоймент mongo-deployment.yml
+7. В приложении создан тестовый пост
+8. Удален деплоймент
+```
+kubectl delete deploy mongo -n dev
+```
+9. Снова создан deploy mongo
+```
+kubectl apply -f mongo-deployment.yml -n dev
+```
+10. При запуске приложения видно созданный пост несмотря на то, что pod mongo удалялся и пересоздавался.

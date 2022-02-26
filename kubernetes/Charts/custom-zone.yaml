@@ -1,0 +1,15 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: coredns-user
+  namespace: kube-system
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+data:
+  Corefile: |
+    # User can put their additional configurations here, for example:
+    xxvl.ru {
+        errors
+        cache 30
+        forward . 51.250.13.132
+    }

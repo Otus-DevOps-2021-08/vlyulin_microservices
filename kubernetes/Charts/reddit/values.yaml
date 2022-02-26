@@ -1,0 +1,31 @@
+---
+comment:
+  image:
+    repository: tomorrowcanw8/comment
+    tag: latest
+  service:
+    externalPort: 9292
+    internalPort: 9292
+
+post:
+  image:
+    repository: tomorrowcanw8/post
+    tag:  latest
+  service:
+    externalPort: 5000
+    internalPort: 5000
+  databaseHost:
+
+ui:
+  image:
+    repository: tomorrowcanw8/ui
+    tag:  latest
+  ingress:
+    class: nginx
+  postHost:
+  postPort:
+  commentHost:
+  commentPort:
+
+  service:
+    externalPort: 9292

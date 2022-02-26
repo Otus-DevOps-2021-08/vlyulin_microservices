@@ -1,0 +1,19 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: {{ template "fullname" . }}-fast
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    kubernetes.io/cluster-service: "true"
+  annotations:
+    storageclass.beta.kubernetes.io/is-default-class: "false"
+provisioner: disk-csi-driver.mks.ycloud.io
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: network-ssd
+  csi.storage.k8s.io/fstype: ext4
+allowVolumeExpansion: false
+reclaimPolicy: Retain

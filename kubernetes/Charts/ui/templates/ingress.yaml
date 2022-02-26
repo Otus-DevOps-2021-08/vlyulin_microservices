@@ -1,0 +1,24 @@
+---
+# apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ template "ui.fullname" . }}
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # kubernetes.io/ingress.allow-http: "true"
+spec:
+  # tls:
+  # - secretName: ui-ingress
+  rules:
+  - host: {{ .Values.ingress.host | default .Release.Name }}
+    http:
+      paths:
+        - path: /*
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ template "ui.fullname" . }}
+              port:
+                number: {{ .Values.service.externalPort }}

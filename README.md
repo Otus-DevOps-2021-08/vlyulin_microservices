@@ -12,6 +12,7 @@ vlyulin microservices repository
 * [Module kubernetes-1](#Module-kubernetes-1)
 * [Module kubernetes-2](#Module-kubernetes-2)
 * [Module kubernetes-3](#Module-kubernetes-3)
+* [Module kubernetes-4](#Module-kubernetes-4)
 
 # Student
 `
@@ -1707,10 +1708,6 @@ make bagged-up
 10. Рабочий вариант образения к сервису post
 ![](img/logging/bagged-to-post-worked.png)
 
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/main
 ## Module kubernetes-1: Установка и настройка Kubernetes. <a name="Module-kubernetes-1"></a>
 > В данном дз студент пройдет тренинг Kubernetes The Hard Way во время которого самостоятельно развернет все компоненты системы.
 > В данном задании тренируются навыки: установки и запуска компонентов kubernetes.
@@ -2389,3 +2386,385 @@ kubectl delete deploy mongo -n dev
 kubectl apply -f mongo-deployment.yml -n dev
 ```
 10. При запуске приложения видно созданный пост несмотря на то, что pod mongo удалялся и пересоздавался.
+
+## Module kubernetes-4: Создание Helm Chart’ов для компонент приложения, управление зависимостями Helm. <a name="Module-kubernetes-4"></a>
+> В данном дз студент произведет интеграцию Gitlab c Kubernetes. Настроит CI\CD пайплайн для деплоя приложения в Kubernetes.
+> В данном задании тренируются навыки: интеграция Gitalb с Kubernetes, настройки CI\CD пайплайнов.
+
+### Установка Helm
+ 
+1. Скачать helm
+```
+curl https://get.helm.sh/helm-v3.8.0-linux-386.tar.gz --output helm-v3.8.0-linux-386.tar.gz
+```
+2. Распокавать
+```
+tar -zxvf helm-v3.8.0-linux-386.tar.gz
+```
+3. Переместить
+```
+mv linux-386/helm /usr/local/bin/helm
+```
+4. Проверить
+```
+helm help
+```
+
+### Установка серверной части Helm’а - Tiller
+>**_Note_**: Tiller - это аддон Kubernetes, т.е. Pod, который общается с API Kubernetes.
+
+Tiller был удален в helm 3. 
+https://helm.sh/docs/faq/changes_since_helm2/
+
+helm version
+```
+version.BuildInfo{Version:"v3.8.0", GitCommit:"d14138609b01886f544b2025f5000351c9eb092e", GitTreeState:"clean", GoVersion:"go1.17.5"}
+```
+
+### Создание helm templates для ui
+1. Создана директория kubernetes/Charts и в ней поддиректории ui, comment, post, reddit
+2. Создан Chart файл для компонента ui приложения kubernetes/Charts/ui/Chart.yaml
+3. Основным содержимым Chart’ов являются шаблоны манифестов Kubernetes. Создана директория ui/templates в которую 
+перенесены манифесты, разработанные ранее для сервиса ui (ui-service, ui-deployment, ui-ingress).
+Манифесты переименованы, убран префикс “ui-“, и поменено расширение на yaml.
+4. Создан namespace dev
+```
+kubectl apply -f ../reddit/dev-namespace.yml
+```
+5. Получено наименование текущего контекста kubernetes
+```
+kubectl config current-context
+```
+вывод
+```
+yc-terraform-k8s
+```
+6. Установка Chart ui
+```
+helm install test-ui-1 ui/ -n dev --kube-context yc-terraform-k8s
+```
+7. Смотрим что получилось
+```
+helm ls -n dev
+```
+вывод
+```
+NAME            NAMESPACE       REVISION        UPDATED                                 STATUS          CHART           APP VERSION
+test-ui-1       dev             1               2022-02-12 17:12:24.4423983 +0300 MSK   deployed        ui-1.0.0        1
+```
+8. Шаблонизирован ui/templates/service.yaml. Добавлены тэги наподобие {{ .Release.Name }}, {{ .Chart.Name }}.
+9. Шаблонизирован ui/templates/deployment.yaml
+10. Шаблонизирован ui/templates/ingress.yaml
+11. Определены значения собственных переменных ui/values.yaml
+12. Установлено несколько релизов ui
+```
+helm install test-ui-2 ui/ -n dev 
+helm install test-ui-3 ui/ -n dev 
+```
+Получил ошибку:
+```
+Error: INSTALLATION FAILED: unable to build kubernetes objects from release manifest: unable to recognize "": no matches for kind "Deployment" in version "apps/v1beta1"
+```
+>**Note**: https://stackoverflow.com/questions/58481850/no-matches-for-kind-deployment-in-version-extensions-v1beta1
+Как исправить. Проверить какое api поддерживает Kubernetes командой:
+```
+kubectl api-resources | grep deployment
+```
+вывод:
+```
+deployments                       deploy       apps/v1                           true         Deployment
+```
+Соответственно внесены изменения в deployment.yaml 
+```
+---
+apiVersion: apps/v1
+kind: Deployment
+```
+Проверяем:
+```
+helm install test-ui-2 ui/ -n dev --dry-run
+```
+Теперь все нормально.
+
+13. Кастомизирован deployment.yaml добавлены параметры образ и порт.
+14. Переустановлены версии
+```
+helm upgrade test-ui-1 ui/ -n dev
+helm upgrade test-ui-2 ui/ -n dev
+helm upgrade test-ui-3 ui/ -n dev
+```
+
+### Создание helm templates для post и comment
+1. Созданы файлы kubernetes/Charts/post/Chart.yaml и kubernetes/Charts/comment/Chart.yaml
+2. Созданы template файлы для post и comment
+3. Созданы helper: kubernetes/Charts/post/_helper.tpl, kubernetes/Charts/comment/_helper.tpl
+4. Установка Chart post и comment
+```
+helm install test-post-1 post/ -n dev
+helm install test-comment-1 comment/ -n dev
+```
+5. Смотрим что получилось
+```
+helm ls -n dev
+```
+
+### Создание reddit/requirements.yaml
+1. Создан файл kubernetes\Charts\reddit\requirements.yaml 
+2. В файл reddit/requirements.yaml добавлена зависимость mondogb
+
+### Установка приложения
+```
+helm install reddit-test reddit/
+helm upgrade reddit-test reddit/
+```
+
+### Управление зависимостями
+1. В ui/deployments.yaml установлены корректные переменные окружения:
+```
+- name: POST_SERVICE_HOST
+value: {{ .Values.postHost | default (printf "%s-post" .Release.Name) }}
+- name: POST_SERVICE_PORT
+value: {{ .Values.postPort | default "5000" | quote }}
+- name: COMMENT_SERVICE_HOST
+value: {{ .Values.commentHost | default (printf "%s-comment"
+.Release.Name) }}
+- name: COMMENT_SERVICE_PORT
+value: {{ .Values.commentPort | default "9292" | quote }}
+- name: ENV
+```
+
+2. В Charts/ui/values.yaml добавлены переменные окружения
+```
+postHost:
+postPort:
+commentHost:
+commentPort:
+```
+3. Как наиболее приоритетные переменные для всех модулей определены в Charts\reddit\values.yaml 
+4. После обновления UI обновляем зависимости чарта reddit.
+```
+helm dep update ./reddit
+```
+5. Обнавляем релиз установленный на в k8s
+```
+helm upgrade reddit-test ./reddit
+```
+Получена ошибка:
+```
+'auth.rootPassword' must not be empty, please add '--set auth.rootPassword=$MONGODB_ROOT_PASSWORD' to the command. To get the current value:
+```
+выполнены команды:
+```
+export MONGODB_ROOT_PASSWORD=$(kubectl get secret --namespace "default" reddit-test-mongodb -o jsonpath="{.data.mongodb-root-password}" | base64 --decode)
+helm upgrade reddit-test ./reddit --set mongodb.auth.rootPassword=$MONGODB_ROOT_PASSWORD
+```
+вывод
+```
+Release "reddit-test" has been upgraded. Happy Helming!
+NAME: reddit-test
+LAST DEPLOYED: Wed Feb 16 23:53:56 2022
+NAMESPACE: default
+STATUS: deployed
+REVISION: 2
+TEST SUITE: None
+```
+
+### GitLab + Kubernetes
+Инструкция в домашнем задании по установке Gitlab в Kubernetes устарела.
+
+1. Для этого задания переустановлен k8s
+2. Создано подключение к созданному k8s
+```
+yc managed-kubernetes cluster get-credentials <cluster-name> --external
+yc managed-kubernetes cluster get-credentials k8s --external
+```
+В результате в файл ~/.kube/config будут добавлены user, cluster, и context для подключения к кластеру k8s в Yandex Cloud.
+
+3. Проверка текущего контекста для подключения к кластеру k8s.
+```
+kubectl config current-context
+```
+4. Установлен ingress-nginx
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.0.0/deploy/static/provider/cloud/deploy.yaml
+```
+
+#### Установка GitLab с помощью Helm Chart’а из пакета Omnibus. НЕ РАБОТАЕТ!
+5. Добавлен репозиторий
+```
+helm repo add gitlab https://charts.gitlab.io
+```
+6. Cкачен Chart Git Lab для Helm v.3.X в папку kubernetes\Charts\gitlab-omnibu. Распакован и с шаблоны внесены требуемые изменения.
+>**Note**: https://docs.gitlab.com/charts/installation/deployment.html
+```
+helm fetch gitlab/gitlab --version 5.7.2 --untar
+cd gitlab
+```
+7. Создан внешний externalIP: 51.250.13.132 и DNS запись типа A для домена xxvl.pub.
+![](img/GitLab/dns-record.png)
+
+8. Выполнена установка gitlab в kubernates.
+```
+helm repo add gitlab https://charts.gitlab.io/
+helm repo update
+helm upgrade --install gitlab gitlab/gitlab \
+  --timeout 600s \
+  --set global.hosts.domain=gitlab.xxvl.pub \
+  --set global.hosts.externalIP=51.250.13.132 \
+  --set certmanager-issuer.email=vlyulin@gmail.com
+```
+
+** GitLab не заработал! Проблемы с ingress и еще какие-то, которые я к сожалению не записал, а сейчас не вспомнил **
+
+#### Установка GitLab вне kubernates по инструкции от Yandex
+Пришлось устанавливать GitLab отдельно от kubernetes. 
+
+> ** Инструкция от Yandex **
+> Непрерывное развертывание контейнеризованных приложений с помощью GitLab
+> https://cloud.yandex.ru/docs/tutorials/infrastructure-management/gitlab-containers
+> Дополнительное видео по установке
+> https://www.youtube.com/watch?v=L2G85V4WH2k
+
+1. Создана виртуальная машина из образа GitLab
+![](img/GitLab/gitlab-compute.png)
+
+2. Создан реестр Container Registry. Потом стало понятно, что и без этого можно обойтись.
+![](img/GitLab/container-registry.png)
+
+3. Выполнена настройка GitLab: установлен пароль администратора, создана группа, созданы приложения
+![](img/GitLab/gitlab-group.png)
+
+4. Сервисный аккаунт уже был. Добавлена роль container-registry.images.pusher на каталог с реестром Docker-образов.
+![](img/GitLab/terraform-account.png)
+
+5. Получен токен сервисного аккаунта Kubernetes для аутентификации в GitLab
+```
+yc managed-kubernetes cluster get-credentials <cluster-id> --external
+yc managed-kubernetes cluster get-credentials k8s --external
+```
+
+6. Создана спецификация для создания сервисного аккаунта Kubernetes в YAML-файл kubernetes\Charts\gitlab-admin-service-account.yaml 
+```
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-admin
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: gitlab-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: gitlab-admin
+  namespace: kube-system
+```
+7. Применен
+```
+kubectl apply -f gitlab-admin-service-account.yaml
+```
+8. Получен токен с помощью команды kubectl get secrets
+```
+kubectl -n kube-system get secrets -o json | \
+jq -r '.items[] | select(.metadata.name | startswith("gitlab-admin")) | .data.token' | \
+base64 --decode
+```
+9. Получен адрес узла мастера с помощью команды:
+```
+yc managed-kubernetes cluster get <cluster-id> --format=json \
+| jq -r .master.endpoints.external_v4_endpoint
+```
+10. Получен CA Certificate мастера с помощью команды
+```
+yc managed-kubernetes cluster get <cluster-id> --format=json \
+| jq -r .master.master_auth.cluster_ca_certificate
+```
+11. Подключен кластер Kubernetes к сборкам GitLab
+![](img/GitLab/gitlab-k8s-setup.png)
+
+#### Настройка runner для Gitlab CI/CD
+
+1. Установил Gitlub runner в соответствии с инструкцией
+https://docs.gitlab.com/runner/install/kubernetes.html
+
+2. Создан файл с настройками kubernetes\Charts\GitLabRunner\values.yaml 
+```
+## The GitLab Server URL (with protocol) that want to register the runner against
+## ref: https://docs.gitlab.com/runner/commands/README.html#gitlab-runner-register
+##
+gitlabUrl: http://84.252.128.66/
+
+## The Registration Token for adding new Runners to the GitLab Server. This must
+## be retrieved from your GitLab Instance.
+## ref: https://docs.gitlab.com/ce/ci/runners/README.html
+##
+runnerRegistrationToken: "qaU..."
+...
+runners:
+  # runner configuration, where the multi line strings is evaluated as
+  # template so you can specify helm values inside of it.
+  #
+  # tpl: https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function
+  # runner configuration: https://docs.gitlab.com/runner/configuration/advanced-configuration.html
+  # namespace = "{{.Release.Namespace}}"
+  config: |
+    [[runners]]
+      [runners.kubernetes]
+        namespace = "gitlab-runner"
+        image = "ubuntu:16.04"
+```
+
+3. Установка GitLab runner
+```
+kubectl create namespace gitlab-runner
+helm install --namespace gitlab-runner gitlab-runner -f values.yaml gitlab/gitlab-runner
+```
+
+4. Получена ошибка запуске runner
+```
+ERROR: Job failed (system failure): prepare environment: setting up credentials: secrets is forbidden: User "system:serviceaccount:gitlab-runner:default" cannot create resource "secrets" in API group "" in the namespace "gitlab-runner". Check https://docs.gitlab.com/runner/shells/index.html#shell-profile-loading for more information
+```
+Решение дать все права:
+https://stackoverflow.com/questions/49173838/deployments-apps-is-forbidden-user-systemserviceaccountdefaultdefault-cann
+```
+kubectl create clusterrolebinding serviceaccounts-cluster-admin \
+  --clusterrole=cluster-admin \
+  --group=system:serviceaccounts
+```
+
+5. Остановился на ошибке работы runner'а
+![](img/GitLab/gitlab-fail-1.png)
+  
+![](img/GitLab/gitlab-fail-2.png)
+
+Глядя в лог пода gitlab-runner...
+```
+kubectl logs gitlab-runner-gitlab-runner-9d8bc8954-8gn49 -n gitlab-runner
+```
+вывод
+```
+Configuration loaded                                builds=0
+Metrics server listening                            address=:9252 builds=0
+[session_server].listen_address not defined, session endpoints disabled  builds=0
+Checking for jobs... received                       job=50 repo_url=http://62.84.115.99/vlyulin/ui.git runner=qA3mx4Uv
+WARNING: Job failed: command terminated with exit code 1
+  duration_s=134.465994763 job=50 project=5 runner=qA3mx4Uv
+WARNING: Failed to process runner                   builds=0 error=command terminated with exit code 1 executor=kubernetes runner=qA3mx4Uv
+```
+![](img/GitLab/gitlab-fail-3.png)
+
+**Решения не нашел.** 
+
+1. Предпринял попытку установить runner другим способом по инструкции
+https://adambcomer.com/blog/install-gitlab-runner-kubernetes/
+2. Были созданы в папке kubernetes\Charts\GitLabRunner\ файлы gitlab-runner-service-account.yaml, gitlab-runner-config.yaml и gitlab-runner-deployment.yaml 
+3. Не помогло. Runner даже не зарегистрировался в GitLab.
+
+
+
+

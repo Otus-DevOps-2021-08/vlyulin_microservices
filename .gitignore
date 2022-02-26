@@ -22,3 +22,6 @@ jdauphant.nginx
 terraform-key.json 
 terraform.tfvars
 .terraform.lock.hcl 
+tls.crt 
+tls.key 
+tls-secret.yml 
